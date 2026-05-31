@@ -12,16 +12,6 @@ export function App() {
   const status = useGameStore(s => s.status)
   const setStatus = useGameStore(s => s.setStatus)
 
-  // Capture Spotify OAuth code before React Router overwrites the URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const code = params.get('code')
-    if (code) {
-      sessionStorage.setItem('spotify_oauth_code', code)
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [])
-
   // Sync store status with login state on cold load
   useEffect(() => {
     if (!isLoggedIn() && status !== 'login') {
