@@ -57,6 +57,10 @@ export async function getCurrentlyPlaying(): Promise<CurrentlyPlaying | null> {
   return spotifyFetch<CurrentlyPlaying>('/me/player/currently-playing')
 }
 
+export async function getPlayerState(): Promise<CurrentlyPlaying | null> {
+  return spotifyFetch<CurrentlyPlaying>('/me/player')
+}
+
 interface PagedTracks {
   items: Array<{ track: SpotifyTrack | null }>
   next: string | null

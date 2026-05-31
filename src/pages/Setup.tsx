@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCurrentlyPlaying, getTracksForContext, SpotifyTrack } from '../api/spotify'
+import { getCurrentlyPlaying, getPlayerState, getTracksForContext, SpotifyTrack } from '../api/spotify'
 import { logout, reauthorize } from '../api/auth'
 import { useGameStore } from '../store/gameStore'
 import { Difficulty } from '../types/game'
@@ -22,17 +22,24 @@ export function Setup() {
   }, [])
 
   async function tryStartGame(): Promise<boolean> {
-    const playing = await getCurrentlyPlaying()
+    // Try currently-playing first; fall back to full player state if context is missing
+    let playing = await getCurrentlyPlaying()
+    if (playing && !playing.context) {
+      playing = await getPlayerState()
+    }
 
     if (!playing?.item || !playing.context) {
       return false
     }
 
+    if (playing.context.type !== 'playlist' && playing.context.type !== 'album') {
+      throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
+    }
+
     const pool = await getTracksForContext(playing.context)
 
     if (pool.length < 4) {
-      setError('This playlist/album is too small (needs at least 4 tracks).')
-      return false
+      throw new Error('This playlist/album is too small (needs at least 4 tracks).')
     }
 
     startGame(pool, playing.item as SpotifyTrack)
@@ -40,36 +47,51 @@ export function Setup() {
     return true
   }
 
-  async function handleStart() {
-    setError(null)
-    setStarting(true)
-
-    const ok = await tryStartGame().catch(err => {
-      const msg = (err as Error).message
-      if (msg === 'PLAYLIST_PERMISSION_DENIED') {
-        setNeedsReauth(true)
-        setError('Playlist access denied — your Spotify authorisation is missing the required permission.')
-      } else {
-        setError(msg)
-      }
-      return false
-    })
-
-    if (!ok && !error) {
-      setStarting(false)
-      setWaitingForSpotify(true)
-      pollRef.current = setInterval(async () => {
-        const started = await tryStartGame().catch(() => false)
-        if (started) {
-          if (pollRef.current) clearInterval(pollRef.current)
-          setWaitingForSpotify(false)
-        }
-      }, 3000)
+  function showError(msg: string) {
+    if (msg === 'PLAYLIST_PERMISSION_DENIED') {
+      setNeedsReauth(true)
+      setError('Playlist access denied — tap Re-authorize Spotify to grant the required permission.')
+    } else {
+      setNeedsReauth(false)
+      setError(msg)
     }
   }
 
-  function handleQuickPlay() {
+  async function handleStart() {
+    setError(null)
     setNeedsReauth(false)
+    setStarting(true)
+    if (pollRef.current) clearInterval(pollRef.current)
+
+    let started = false
+    try {
+      started = await tryStartGame()
+    } catch (err) {
+      setStarting(false)
+      showError((err as Error).message)
+      return
+    }
+
+    if (started) return
+
+    setStarting(false)
+    setWaitingForSpotify(true)
+    pollRef.current = setInterval(async () => {
+      try {
+        const ok = await tryStartGame()
+        if (ok) {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setWaitingForSpotify(false)
+        }
+      } catch (err) {
+        if (pollRef.current) clearInterval(pollRef.current)
+        setWaitingForSpotify(false)
+        showError((err as Error).message)
+      }
+    }, 3000)
+  }
+
+  function handleQuickPlay() {
     handleStart()
   }
 
