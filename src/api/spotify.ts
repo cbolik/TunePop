@@ -120,3 +120,18 @@ export async function getTracksForContext(context: SpotifyContext): Promise<Spot
   if (context.type === 'album') return getAlbumTracks(id)
   return []
 }
+
+interface PlayerQueue {
+  currently_playing: SpotifyTrack | null
+  queue: (SpotifyTrack & { type?: string })[]
+}
+
+export async function getQueueTracks(): Promise<SpotifyTrack[]> {
+  const data = await spotifyFetch<PlayerQueue>('/me/player/queue')
+  if (!data) return []
+  const all = [data.currently_playing, ...data.queue]
+  // Filter out episodes and nulls (queue can contain podcasts)
+  return all.filter((item): item is SpotifyTrack =>
+    item !== null && 'album' in item && Boolean(item.id)
+  )
+}

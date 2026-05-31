@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCurrentlyPlaying, getPlayerState, getTracksForContext, SpotifyTrack } from '../api/spotify'
+import { getCurrentlyPlaying, getPlayerState, getQueueTracks, getTracksForContext, SpotifyTrack } from '../api/spotify'
 import { grantedScope, hasScope, logout, reauthorize } from '../api/auth'
 import { useGameStore } from '../store/gameStore'
 import { Difficulty } from '../types/game'
@@ -36,14 +36,23 @@ export function Setup() {
       throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
     }
 
-    if (playing.context.type === 'playlist' && !hasScope('playlist-read-private')) {
-      throw new Error(`PLAYLIST_PERMISSION_DENIED:scope not granted (got: "${grantedScope()}")`)
+    let pool: SpotifyTrack[]
+    try {
+      pool = await getTracksForContext(playing.context)
+    } catch (err) {
+      if ((err as Error).message.startsWith('PLAYLIST_PERMISSION_DENIED')) {
+        // Playlist endpoint blocked — fall back to the player queue
+        pool = await getQueueTracks()
+        if (pool.length < 4) {
+          throw new Error('Could not read this playlist and the queue has too few tracks. Try playing a different playlist.')
+        }
+      } else {
+        throw err
+      }
     }
 
-    const pool = await getTracksForContext(playing.context)
-
     if (pool.length < 4) {
-      throw new Error('This playlist/album is too small (needs at least 4 tracks).')
+      throw new Error('This playlist/album has too few tracks (need at least 4).')
     }
 
     startGame(pool, playing.item as SpotifyTrack)
