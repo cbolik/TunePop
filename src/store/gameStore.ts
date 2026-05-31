@@ -123,7 +123,7 @@ export const useGameStore = create<GameState>()(
       },
     }),
     {
-      name: 'spotpop-config',
+      name: 'tunepop-config',
       partialize: state => ({ config: state.config }),
     },
   ),

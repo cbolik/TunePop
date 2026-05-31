@@ -74,7 +74,7 @@ export function Setup() {
   return (
     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto">
       <header className="flex items-center justify-between px-4 pt-12 pb-4">
-        <h1 className="text-2xl font-extrabold text-white">SpotPop</h1>
+        <h1 className="text-2xl font-extrabold text-white">TunePop</h1>
         <button
           onClick={handleLogout}
           className="text-gray-400 text-sm hover:text-white transition-colors"

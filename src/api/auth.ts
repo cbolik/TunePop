@@ -1,8 +1,8 @@
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID as string
 const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI as string
 const SCOPES = 'user-read-currently-playing user-read-playback-state'
-const TOKEN_KEY = 'spotpop_tokens'
-const VERIFIER_KEY = 'spotpop_pkce_verifier'
+const TOKEN_KEY = 'tunepop_tokens'
+const VERIFIER_KEY = 'tunepop_pkce_verifier'
 
 interface StoredTokens {
   accessToken: string

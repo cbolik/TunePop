@@ -50,7 +50,7 @@ export function Login() {
           <div className="w-20 h-20 bg-spotify rounded-full flex items-center justify-center text-4xl">
             🎵
           </div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight">SpotPop</h1>
+          <h1 className="text-4xl font-extrabold text-white tracking-tight">TunePop</h1>
           <p className="text-gray-400 text-center text-sm leading-relaxed">
             Beat the bot at identifying songs from your Spotify playlists
           </p>
