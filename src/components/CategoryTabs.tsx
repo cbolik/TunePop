@@ -5,12 +5,15 @@ interface Props {
   active: Category
   onChange: (category: Category) => void
   disabled?: boolean
+  viableCategories?: Category[]
 }
 
-export function CategoryTabs({ active, onChange, disabled }: Props) {
+export function CategoryTabs({ active, onChange, disabled, viableCategories }: Props) {
+  const visible = viableCategories ?? CATEGORIES
+
   return (
     <div className="flex gap-1 bg-card rounded-xl p-1">
-      {CATEGORIES.map(cat => (
+      {visible.map(cat => (
         <button
           key={cat}
           onClick={() => !disabled && onChange(cat)}

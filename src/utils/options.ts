@@ -28,22 +28,20 @@ export function buildOptions(
     }
   }
 
-  // Fill remaining slots for year with nearby values
+  // Fill remaining year slots with nearby past years
   if (category === 'year') {
     const correctYear = parseInt(correctValue, 10)
+    const currentYear = new Date().getFullYear()
     let offset = 1
-    while (falseSet.size < 3) {
-      const candidates = [
-        String(correctYear + offset),
-        String(correctYear - offset),
-      ]
-      for (const c of candidates) {
-        if (falseSet.size < 3 && c !== correctValue && !falseSet.has(c)) {
-          falseSet.add(c)
+    while (falseSet.size < 3 && offset <= 50) {
+      // Prefer going backwards to avoid future years
+      for (const candidate of [String(correctYear - offset), String(correctYear + offset)]) {
+        const y = parseInt(candidate)
+        if (falseSet.size < 3 && y >= 1950 && y <= currentYear && candidate !== correctValue && !falseSet.has(candidate)) {
+          falseSet.add(candidate)
         }
       }
       offset++
-      if (offset > 20) break
     }
   }
 
@@ -68,6 +66,22 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   year:   'Year',
 }
 
+export function getViableCategories(correctTrack: SpotifyTrack, pool: SpotifyTrack[]): Category[] {
+  const viable = CATEGORIES.filter(cat => {
+    if (cat === 'year') return true  // always viable via year fallback
+    const correctValue = getValueForCategory(correctTrack, cat)
+    const uniqueFalse = new Set(
+      pool.map(t => getValueForCategory(t, cat)).filter(v => v !== correctValue)
+    )
+    return uniqueFalse.size >= 3
+  })
+  return viable.length > 0 ? viable : ['song']
+}
+
+export function randomCategoryFrom(categories: Category[]): Category {
+  return categories[Math.floor(Math.random() * categories.length)]
+}
+
 export function randomCategory(): Category {
-  return CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)]
+  return randomCategoryFrom(CATEGORIES)
 }

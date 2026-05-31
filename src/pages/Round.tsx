@@ -7,7 +7,7 @@ import { ScoreBoard } from '../components/ScoreBoard'
 import { useGameStore } from '../store/gameStore'
 import { Category, RoundOption } from '../types/game'
 import { getBotAnswer, getBotDelay } from '../utils/bot'
-import { buildOptions } from '../utils/options'
+import { buildOptions, getViableCategories, randomCategoryFrom } from '../utils/options'
 import { calculatePoints } from '../utils/scoring'
 
 type Phase = 'playing' | 'revealing' | 'done'
@@ -36,7 +36,18 @@ export function Round() {
   const [userAnswerId, setUserAnswerId] = useState<string | null>(null)
   const [botAnswerId, setBotAnswerId] = useState<string | null>(null)
   const [userElapsedMs, setUserElapsedMs] = useState<number | null>(null)
-  const [activeCategory, setActiveCategory] = useState<Category>(currentCategory)
+
+  const viableCategories = useMemo(() => {
+    if (!currentTrack) return ['song' as Category]
+    return getViableCategories(currentTrack, trackPool)
+  }, [currentTrack, trackPool])
+
+  // Ensure the stored category is viable; if not, pick a random viable one
+  const [activeCategory, setActiveCategory] = useState<Category>(() => {
+    return viableCategories.includes(currentCategory)
+      ? currentCategory
+      : randomCategoryFrom(viableCategories)
+  })
 
   // Rebuild options when category tab changes
   const options = useMemo<RoundOption[]>(() => {
@@ -82,9 +93,7 @@ export function Round() {
   // When both user and bot have answered → reveal
   useEffect(() => {
     if (phase !== 'playing') return
-    const userDone = userAnswerId !== null
-    const botDone = botAnswerId !== null
-    if (userDone && botDone) {
+    if (userAnswerId !== null && botAnswerId !== null) {
       triggerReveal()
     }
   }, [userAnswerId, botAnswerId, phase, triggerReveal])
@@ -142,19 +151,16 @@ export function Round() {
 
   function handleAnswer(option: RoundOption) {
     if (phase !== 'playing' || userAnswerId !== null) return
-    const elapsed = Date.now() - startTimeRef.current
     setUserAnswerId(option.id)
-    setUserElapsedMs(elapsed)
+    setUserElapsedMs(Date.now() - startTimeRef.current)
   }
 
   function handleCategoryChange(cat: Category) {
     if (phase !== 'playing') return
     setActiveCategory(cat)
     setCategory(cat)
-    // Reset user selection but keep timer running
     setUserAnswerId(null)
     setUserElapsedMs(null)
-    // Reset bot for new category — reschedule if not yet fired
     if (botAnswerId === null) {
       if (botTimerRef.current) clearTimeout(botTimerRef.current)
       botTimerRef.current = setTimeout(() => {
@@ -165,10 +171,8 @@ export function Round() {
 
   function getOptionState(option: RoundOption): 'default' | 'selected' | 'correct' | 'wrong' | 'dimmed' {
     if (phase === 'playing') {
-      if (userAnswerId === option.id) return 'selected'
-      return 'default'
+      return userAnswerId === option.id ? 'selected' : 'default'
     }
-    // revealing / done
     if (option.isCorrect) return 'correct'
     if (option.id === userAnswerId) return 'wrong'
     return 'dimmed'
@@ -186,25 +190,13 @@ export function Round() {
       </header>
 
       <main className="flex-1 flex flex-col gap-4 px-4 pb-6">
-        {/* Track info */}
-        <div className="bg-card rounded-2xl px-4 py-3 text-center">
-          <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Now Playing</p>
-          <p className="text-white font-bold text-base leading-tight">
-            {currentTrack.name}
-          </p>
-          <p className="text-gray-400 text-sm">
-            {currentTrack.artists.map(a => a.name).join(', ')}
-          </p>
-        </div>
-
-        {/* Category tabs */}
         <CategoryTabs
           active={activeCategory}
           onChange={handleCategoryChange}
           disabled={locked}
+          viableCategories={viableCategories}
         />
 
-        {/* Options grid */}
         <div className="grid grid-cols-1 gap-2.5">
           {options.map(option => (
             <OptionCard
@@ -217,7 +209,6 @@ export function Round() {
           ))}
         </div>
 
-        {/* Bot */}
         <div className="mt-auto pt-2">
           <BotAvatar difficulty={config.difficulty} phase={botPhase} />
         </div>

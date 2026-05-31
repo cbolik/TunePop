@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ProgressRing } from '../components/ProgressRing'
-import { getCurrentlyPlaying } from '../api/spotify'
+import { getCurrentlyPlaying, SpotifyTrack } from '../api/spotify'
 import { useGameStore, useScores } from '../store/gameStore'
 import { BOT_PERSONALITIES } from '../types/game'
-import { randomCategory } from '../utils/options'
+import { getViableCategories, randomCategoryFrom } from '../utils/options'
 
 const AUTO_ADVANCE_SECS = 4
 
@@ -22,55 +22,76 @@ export function RoundResult() {
   const { userScore, botScore } = useScores()
 
   const [countdown, setCountdown] = useState(AUTO_ADVANCE_SECS)
+  const [waitingForTrack, setWaitingForTrack] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const prefetchDone = useRef(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const round = completedRounds[completedRounds.length - 1]
   const isLastRound = config.rounds !== null && completedRounds.length >= config.rounds
   const bot = BOT_PERSONALITIES[config.difficulty]
 
-  // Pre-fetch next round track while showing results
-  useEffect(() => {
-    if (prefetchDone.current || isLastRound) return
-    prefetchDone.current = true
-
-    getCurrentlyPlaying()
-      .then(playing => {
-        if (playing?.item && playing.item.id !== currentTrack?.id) {
-          const nextTrack = playing.item
-          const inPool = trackPool.some(t => t.id === nextTrack.id)
-          if (inPool) {
-            setNextRoundData({ track: nextTrack, category: randomCategory() })
-          }
-        }
-      })
-      .catch(() => {})
-  }, [currentTrack, isLastRound, setNextRoundData, trackPool])
-
-  // Countdown timer
+  // Countdown timer — pauses when waiting for next track
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current)
           handleAdvance()
           return 0
         }
         return prev - 1
       })
     }, 1000)
-
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function handleAdvance() {
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
+
+  function doAdvance(newTrack: SpotifyTrack | null) {
     if (timerRef.current) clearInterval(timerRef.current)
+    if (pollRef.current) clearInterval(pollRef.current)
+
+    if (newTrack) {
+      const viable = getViableCategories(newTrack, trackPool)
+      setNextRoundData({ track: newTrack, category: randomCategoryFrom(viable) })
+    }
+
+    startNextRound(currentTrack!)
+    navigate('/round', { replace: true })
+  }
+
+  async function handleAdvance() {
+    if (timerRef.current) clearInterval(timerRef.current)
+
     if (isLastRound) {
       endGame()
       navigate('/gameover', { replace: true })
-    } else {
-      startNextRound(currentTrack!)
-      navigate('/round', { replace: true })
+      return
+    }
+
+    try {
+      const playing = await getCurrentlyPlaying()
+      if (playing?.item && playing.item.id !== round?.trackId) {
+        const inPool = trackPool.some(t => t.id === playing.item!.id)
+        doAdvance(inPool ? playing.item : null)
+      } else {
+        // Same track still playing — wait for it to change
+        setWaitingForTrack(true)
+        pollRef.current = setInterval(async () => {
+          try {
+            const p = await getCurrentlyPlaying()
+            if (p?.item && p.item.id !== round?.trackId) {
+              const inPool = trackPool.some(t => t.id === p.item!.id)
+              doAdvance(inPool ? p.item : null)
+            }
+          } catch { /* keep polling */ }
+        }, 3000)
+      }
+    } catch {
+      doAdvance(null)
     }
   }
 
@@ -100,9 +121,11 @@ export function RoundResult() {
              noneCorrect ? 'Tough one!' : ''}
           </h2>
         </div>
-        <button onClick={handleAdvance} className="relative">
-          <ProgressRing seconds={countdown} total={AUTO_ADVANCE_SECS} />
-        </button>
+        {!waitingForTrack && (
+          <button onClick={handleAdvance}>
+            <ProgressRing seconds={countdown} total={AUTO_ADVANCE_SECS} />
+          </button>
+        )}
       </header>
 
       <main className="flex-1 flex flex-col gap-4 px-4 pb-6 animate-fade-in">
@@ -158,13 +181,20 @@ export function RoundResult() {
           </div>
         </div>
 
-        {/* Advance button */}
-        <button
-          onClick={handleAdvance}
-          className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
-        >
-          {isLastRound ? 'See Final Results' : 'Next Round'}
-        </button>
+        {/* Advance / waiting */}
+        {waitingForTrack ? (
+          <div className="w-full bg-card rounded-2xl py-4 px-6 flex items-center justify-center gap-3">
+            <span className="w-4 h-4 border-2 border-spotify border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            <span className="text-gray-400 text-sm">Waiting for next track…</span>
+          </div>
+        ) : (
+          <button
+            onClick={handleAdvance}
+            className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
+          >
+            {isLastRound ? 'See Final Results' : 'Next Round'}
+          </button>
+        )}
       </main>
     </div>
   )
