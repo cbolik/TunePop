@@ -47,7 +47,7 @@ async function spotifyFetch<T>(path: string): Promise<T | null> {
   })
 
   if (res.status === 204 || res.status === 404) return null
-  if (res.status === 403) throw new Error('This playlist can\'t be accessed — Spotify-curated playlists (Daily Mixes, Discover Weekly, Radio) are restricted. Try a playlist you\'ve created or saved from an artist.')
+  if (res.status === 403) throw new Error('PLAYLIST_PERMISSION_DENIED')
   if (!res.ok) throw new Error(`Spotify ${res.status}: ${path}`)
 
   return res.json() as Promise<T>

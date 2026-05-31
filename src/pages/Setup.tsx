@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCurrentlyPlaying, getTracksForContext, SpotifyTrack } from '../api/spotify'
-import { logout } from '../api/auth'
+import { logout, reauthorize } from '../api/auth'
 import { useGameStore } from '../store/gameStore'
 import { Difficulty } from '../types/game'
 import { BOT_PERSONALITIES } from '../types/game'
@@ -14,6 +14,7 @@ export function Setup() {
   const [starting, setStarting] = useState(false)
   const [waitingForSpotify, setWaitingForSpotify] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [needsReauth, setNeedsReauth] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -44,7 +45,13 @@ export function Setup() {
     setStarting(true)
 
     const ok = await tryStartGame().catch(err => {
-      setError((err as Error).message)
+      const msg = (err as Error).message
+      if (msg === 'PLAYLIST_PERMISSION_DENIED') {
+        setNeedsReauth(true)
+        setError('Playlist access denied — your Spotify authorisation is missing the required permission.')
+      } else {
+        setError(msg)
+      }
       return false
     })
 
@@ -62,6 +69,7 @@ export function Setup() {
   }
 
   function handleQuickPlay() {
+    setNeedsReauth(false)
     handleStart()
   }
 
@@ -112,8 +120,16 @@ export function Setup() {
         )}
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-400">
-            {error}
+          <div className="bg-red-500/20 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-400 flex flex-col gap-2">
+            <span>{error}</span>
+            {needsReauth && (
+              <button
+                onClick={reauthorize}
+                className="self-start text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all font-semibold text-xs px-3 py-1.5 rounded-lg"
+              >
+                Re-authorize Spotify
+              </button>
+            )}
           </div>
         )}
 

@@ -46,7 +46,7 @@ async function generateChallenge(verifier: string): Promise<string> {
     .replace(/=+$/, '')
 }
 
-export async function startAuth(): Promise<void> {
+export async function startAuth(showDialog = false): Promise<void> {
   const verifier = await generateVerifier()
   const challenge = await generateChallenge(verifier)
   sessionStorage.setItem(VERIFIER_KEY, verifier)
@@ -60,7 +60,14 @@ export async function startAuth(): Promise<void> {
     scope: SCOPES,
   })
 
+  if (showDialog) params.set('show_dialog', 'true')
+
   window.location.href = `https://accounts.spotify.com/authorize?${params}`
+}
+
+export function reauthorize(): void {
+  clear()
+  startAuth(true)
 }
 
 export async function handleCallback(code: string): Promise<void> {
