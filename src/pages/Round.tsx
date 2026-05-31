@@ -1,19 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BotAvatar } from '../components/BotAvatar'
 import { CategoryTabs } from '../components/CategoryTabs'
 import { OptionCard } from '../components/OptionCard'
 import { ScoreBoard } from '../components/ScoreBoard'
 import { useGameStore } from '../store/gameStore'
-import { Category, RoundOption } from '../types/game'
+import { Category, CategoryResult, RoundOption } from '../types/game'
 import { getBotAnswer, getBotDelay } from '../utils/bot'
 import { buildOptions, getViableCategories, randomCategoryFrom } from '../utils/options'
 import { calculatePoints } from '../utils/scoring'
 
-type Phase = 'playing' | 'revealing' | 'done'
-
-const REVEAL_DURATION_MS = 900
 const ROUND_TIMEOUT_MS = 30_000
+
+interface TabState {
+  options: RoundOption[]
+  userAnswerId: string | null
+  botAnswerId: string | null
+  userAnsweredAt: number | null
+}
 
 export function Round() {
   const navigate = useNavigate()
@@ -23,90 +27,107 @@ export function Round() {
     trackPool,
     config,
     addCompletedRound,
-    setCategory,
   } = useGameStore()
 
   const startTimeRef = useRef<number>(Date.now())
   const botDelayRef = useRef<number>(getBotDelay(config.difficulty))
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const [phase, setPhase] = useState<Phase>('playing')
-  const [userAnswerId, setUserAnswerId] = useState<string | null>(null)
-  const [botAnswerId, setBotAnswerId] = useState<string | null>(null)
-  const [userElapsedMs, setUserElapsedMs] = useState<number | null>(null)
 
   const viableCategories = useMemo(() => {
     if (!currentTrack) return ['song' as Category]
     return getViableCategories(currentTrack, trackPool)
   }, [currentTrack, trackPool])
 
-  // Ensure the stored category is viable; if not, pick a random viable one
-  const [activeCategory, setActiveCategory] = useState<Category>(() => {
-    return viableCategories.includes(currentCategory)
-      ? currentCategory
-      : randomCategoryFrom(viableCategories)
+  const [tabStates, setTabStates] = useState<Partial<Record<Category, TabState>>>(() => {
+    if (!currentTrack) return {}
+    const viable = getViableCategories(currentTrack, trackPool)
+    const states: Partial<Record<Category, TabState>> = {}
+    for (const cat of viable) {
+      states[cat] = {
+        options: buildOptions(currentTrack, trackPool, cat),
+        userAnswerId: null,
+        botAnswerId: null,
+        userAnsweredAt: null,
+      }
+    }
+    return states
   })
 
-  // Rebuild options when category tab changes
-  const options = useMemo<RoundOption[]>(() => {
-    if (!currentTrack) return []
-    return buildOptions(currentTrack, trackPool, activeCategory)
-  }, [currentTrack, trackPool, activeCategory])
+  const [activeCategory, setActiveCategory] = useState<Category>(() => {
+    if (!currentTrack) return 'song'
+    const viable = getViableCategories(currentTrack, trackPool)
+    return viable.includes(currentCategory) ? currentCategory : randomCategoryFrom(viable)
+  })
 
-  // Derive bot answer for current options (stable per category per round)
-  const botAnswerForCategory = useMemo(() => {
-    if (!options.length) return null
-    return getBotAnswer(options, config.difficulty)
-  }, [options, config.difficulty])
+  const [botAnswered, setBotAnswered] = useState(false)
 
-  const triggerReveal = useCallback(() => {
-    setPhase('revealing')
-    revealTimerRef.current = setTimeout(() => {
-      setPhase('done')
-    }, REVEAL_DURATION_MS)
-  }, [])
-
-  // Bot timer
+  // Bot locks in on all tabs at once after its delay
   useEffect(() => {
     botTimerRef.current = setTimeout(() => {
-      if (botAnswerForCategory) {
-        setBotAnswerId(botAnswerForCategory.id)
-      }
+      setBotAnswered(true)
+      setTabStates(prev => {
+        const next = { ...prev }
+        for (const cat of Object.keys(next) as Category[]) {
+          const tab = next[cat]!
+          const botAns = getBotAnswer(tab.options, config.difficulty)
+          next[cat] = { ...tab, botAnswerId: botAns?.id ?? null }
+        }
+        return next
+      })
     }, botDelayRef.current)
-
     return () => { if (botTimerRef.current) clearTimeout(botTimerRef.current) }
-  }, [botAnswerForCategory])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Round timeout (auto-submit miss)
-  useEffect(() => {
-    timeoutRef.current = setTimeout(() => {
-      if (phase === 'playing') {
-        triggerReveal()
-      }
-    }, ROUND_TIMEOUT_MS)
+  function handleAnswer(option: RoundOption) {
+    const tab = tabStates[activeCategory]
+    if (!tab || tab.userAnswerId !== null) return
+    setTabStates(prev => ({
+      ...prev,
+      [activeCategory]: {
+        ...prev[activeCategory]!,
+        userAnswerId: option.id,
+        userAnsweredAt: Date.now(),
+      },
+    }))
+  }
 
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
-  }, [phase, triggerReveal])
+  function getOptionState(option: RoundOption): 'default' | 'correct' | 'wrong' | 'dimmed' {
+    const tab = tabStates[activeCategory]
+    if (!tab || tab.userAnswerId === null) return 'default'
+    if (option.isCorrect) return 'correct'
+    if (option.id === tab.userAnswerId) return 'wrong'
+    return 'dimmed'
+  }
 
-  // When both user and bot have answered → reveal
-  useEffect(() => {
-    if (phase !== 'playing') return
-    if (userAnswerId !== null && botAnswerId !== null) {
-      triggerReveal()
-    }
-  }, [userAnswerId, botAnswerId, phase, triggerReveal])
+  function handleNextRound() {
+    if (!currentTrack) return
+    if (botTimerRef.current) clearTimeout(botTimerRef.current)
 
-  // Navigate after reveal
-  useEffect(() => {
-    if (phase !== 'done' || !currentTrack) return
+    const results: CategoryResult[] = viableCategories.flatMap(cat => {
+      const tab = tabStates[cat]
+      if (!tab) return []
+      const userCorrect = tab.options.find(o => o.id === tab.userAnswerId)?.isCorrect ?? false
+      const botCorrect = tab.options.find(o => o.id === tab.botAnswerId)?.isCorrect ?? false
+      return [{
+        category: cat,
+        options: tab.options,
+        userAnswerId: tab.userAnswerId,
+        botAnswerId: tab.botAnswerId,
+        userCorrect,
+        botCorrect,
+        userElapsedMs: tab.userAnsweredAt ? tab.userAnsweredAt - startTimeRef.current : null,
+      }]
+    })
 
-    const elapsed = userElapsedMs ?? ROUND_TIMEOUT_MS
-    const botElapsed = botDelayRef.current
+    const userPoints = results.reduce((sum, r) => {
+      const elapsed = r.userElapsedMs ?? ROUND_TIMEOUT_MS
+      return sum + calculatePoints(r.userCorrect, elapsed, config.speedMode)
+    }, 0)
 
-    const userCorrect = options.find(o => o.id === userAnswerId)?.isCorrect ?? false
-    const botCorrect = options.find(o => o.id === botAnswerId)?.isCorrect ?? false
+    const botPoints = results.reduce((sum, r) => {
+      return sum + calculatePoints(r.botCorrect, botDelayRef.current, config.speedMode)
+    }, 0)
 
     addCompletedRound({
       trackId: currentTrack.id,
@@ -115,73 +136,19 @@ export function Round() {
       albumName: currentTrack.album.name,
       releaseYear: currentTrack.album.release_date.substring(0, 4),
       albumArtUrl: currentTrack.album.images[0]?.url ?? null,
-      category: activeCategory,
-      options,
-      userAnswerId,
-      botAnswerId,
-      userCorrect,
-      botCorrect,
-      userPoints: calculatePoints(userCorrect, elapsed, config.speedMode),
-      botPoints: calculatePoints(botCorrect, botElapsed, config.speedMode),
-      userElapsedMs: elapsed,
+      results,
+      userPoints,
+      botPoints,
     })
 
     navigate('/result', { replace: true })
-  }, [
-    phase,
-    currentTrack,
-    userAnswerId,
-    botAnswerId,
-    userElapsedMs,
-    options,
-    activeCategory,
-    config.speedMode,
-    addCompletedRound,
-    navigate,
-  ])
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (botTimerRef.current) clearTimeout(botTimerRef.current)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
-    }
-  }, [])
-
-  function handleAnswer(option: RoundOption) {
-    if (phase !== 'playing' || userAnswerId !== null) return
-    setUserAnswerId(option.id)
-    setUserElapsedMs(Date.now() - startTimeRef.current)
-  }
-
-  function handleCategoryChange(cat: Category) {
-    if (phase !== 'playing') return
-    setActiveCategory(cat)
-    setCategory(cat)
-    setUserAnswerId(null)
-    setUserElapsedMs(null)
-    if (botAnswerId === null) {
-      if (botTimerRef.current) clearTimeout(botTimerRef.current)
-      botTimerRef.current = setTimeout(() => {
-        if (botAnswerForCategory) setBotAnswerId(botAnswerForCategory.id)
-      }, Math.max(0, botDelayRef.current - (Date.now() - startTimeRef.current)))
-    }
-  }
-
-  function getOptionState(option: RoundOption): 'default' | 'selected' | 'correct' | 'wrong' | 'dimmed' {
-    if (phase === 'playing') {
-      return userAnswerId === option.id ? 'selected' : 'default'
-    }
-    if (option.isCorrect) return 'correct'
-    if (option.id === userAnswerId) return 'wrong'
-    return 'dimmed'
   }
 
   if (!currentTrack) return null
 
-  const botPhase = botAnswerId !== null ? 'locked' : 'thinking'
-  const locked = phase !== 'playing' || userAnswerId !== null
+  const activeTab = tabStates[activeCategory]
+  const options = activeTab?.options ?? []
+  const answeredCategories = viableCategories.filter(cat => tabStates[cat]?.userAnswerId !== null)
 
   return (
     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto">
@@ -192,9 +159,9 @@ export function Round() {
       <main className="flex-1 flex flex-col gap-4 px-4 pb-6">
         <CategoryTabs
           active={activeCategory}
-          onChange={handleCategoryChange}
-          disabled={locked}
+          onChange={setActiveCategory}
           viableCategories={viableCategories}
+          answeredCategories={answeredCategories}
         />
 
         <div className="grid grid-cols-1 gap-2.5">
@@ -204,13 +171,19 @@ export function Round() {
               label={option.label}
               state={getOptionState(option)}
               onClick={() => handleAnswer(option)}
-              disabled={locked}
+              disabled={activeTab?.userAnswerId !== null}
             />
           ))}
         </div>
 
-        <div className="mt-auto pt-2">
-          <BotAvatar difficulty={config.difficulty} phase={botPhase} />
+        <div className="mt-auto pt-2 flex flex-col gap-3">
+          <BotAvatar difficulty={config.difficulty} phase={botAnswered ? 'locked' : 'thinking'} />
+          <button
+            onClick={handleNextRound}
+            className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
+          >
+            Next Round →
+          </button>
         </div>
       </main>
     </div>

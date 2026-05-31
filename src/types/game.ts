@@ -14,6 +14,16 @@ export interface RoundOption {
   isCorrect: boolean
 }
 
+export interface CategoryResult {
+  category: Category
+  options: RoundOption[]
+  userAnswerId: string | null
+  botAnswerId: string | null
+  userCorrect: boolean
+  botCorrect: boolean
+  userElapsedMs: number | null
+}
+
 export interface CompletedRound {
   trackId: string
   trackName: string
@@ -21,15 +31,9 @@ export interface CompletedRound {
   albumName: string
   releaseYear: string
   albumArtUrl: string | null
-  category: Category
-  options: RoundOption[]
-  userAnswerId: string | null
-  botAnswerId: string | null
-  userCorrect: boolean
-  botCorrect: boolean
+  results: CategoryResult[]
   userPoints: number
   botPoints: number
-  userElapsedMs: number | null
 }
 
 export interface BotPersonality {

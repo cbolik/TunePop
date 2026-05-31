@@ -10,9 +10,11 @@ export function GameOver() {
 
   const userWins = userScore > botScore
   const tied = userScore === botScore
-  const userCorrect = completedRounds.filter(r => r.userCorrect).length
-  const botCorrect = completedRounds.filter(r => r.botCorrect).length
-  const total = completedRounds.length
+
+  const allResults = completedRounds.flatMap(r => r.results)
+  const userCorrect = allResults.filter(r => r.userCorrect).length
+  const botCorrect = allResults.filter(r => r.botCorrect).length
+  const total = allResults.length
 
   function handlePlayAgain() {
     resetToSetup()
@@ -63,22 +65,27 @@ export function GameOver() {
           <div className="w-full bg-card rounded-2xl p-4">
             <p className="text-gray-400 text-xs uppercase tracking-wider mb-3">Round Breakdown</p>
             <div className="flex flex-col gap-2">
-              {completedRounds.map((round, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400 text-xs w-16">Round {i + 1}</span>
-                  <span className="text-gray-300 text-xs flex-1 text-center truncate px-2">
-                    {round.trackName}
-                  </span>
-                  <div className="flex gap-2">
-                    <span className={`text-xs font-semibold w-4 text-center ${round.userCorrect ? 'text-spotify' : 'text-red-400'}`}>
-                      {round.userCorrect ? '✓' : '✗'}
+              {completedRounds.map((round, i) => {
+                const rUserCorrect = round.results.filter(r => r.userCorrect).length
+                const rBotCorrect = round.results.filter(r => r.botCorrect).length
+                const rTotal = round.results.length
+                return (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400 text-xs w-16">Round {i + 1}</span>
+                    <span className="text-gray-300 text-xs flex-1 text-center truncate px-2">
+                      {round.trackName}
                     </span>
-                    <span className={`text-xs font-semibold w-4 text-center ${round.botCorrect ? 'text-spotify' : 'text-red-400'}`}>
-                      {round.botCorrect ? '✓' : '✗'}
-                    </span>
+                    <div className="flex gap-3">
+                      <span className={`text-xs font-semibold ${rUserCorrect > rBotCorrect ? 'text-spotify' : 'text-gray-400'}`}>
+                        {rUserCorrect}/{rTotal}
+                      </span>
+                      <span className={`text-xs font-semibold ${rBotCorrect > rUserCorrect ? 'text-spotify' : 'text-gray-400'}`}>
+                        {rBotCorrect}/{rTotal}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
