@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCurrentlyPlaying, getPlayerState, getTracksForContext, SpotifyTrack } from '../api/spotify'
-import { logout, reauthorize } from '../api/auth'
+import { grantedScope, hasScope, logout, reauthorize } from '../api/auth'
 import { useGameStore } from '../store/gameStore'
 import { Difficulty } from '../types/game'
 import { BOT_PERSONALITIES } from '../types/game'
@@ -36,6 +36,10 @@ export function Setup() {
       throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
     }
 
+    if (playing.context.type === 'playlist' && !hasScope('playlist-read-private')) {
+      throw new Error(`PLAYLIST_PERMISSION_DENIED:scope not granted (got: "${grantedScope()}")`)
+    }
+
     const pool = await getTracksForContext(playing.context)
 
     if (pool.length < 4) {
@@ -48,9 +52,10 @@ export function Setup() {
   }
 
   function showError(msg: string) {
-    if (msg === 'PLAYLIST_PERMISSION_DENIED') {
+    if (msg.startsWith('PLAYLIST_PERMISSION_DENIED')) {
+      const detail = msg.split(':').slice(1).join(':')
       setNeedsReauth(true)
-      setError('Playlist access denied — tap Re-authorize Spotify to grant the required permission.')
+      setError(`Playlist access denied${detail ? ` (${detail})` : ''}. Tap Re-authorize Spotify — if it keeps failing, go to Spotify account settings → Apps → remove TunePop, then re-authorize.`)
     } else {
       setNeedsReauth(false)
       setError(msg)

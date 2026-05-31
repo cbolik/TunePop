@@ -47,7 +47,10 @@ async function spotifyFetch<T>(path: string): Promise<T | null> {
   })
 
   if (res.status === 204 || res.status === 404) return null
-  if (res.status === 403) throw new Error('PLAYLIST_PERMISSION_DENIED')
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(`PLAYLIST_PERMISSION_DENIED:${body.error?.message ?? 'Forbidden'}`)
+  }
   if (!res.ok) throw new Error(`Spotify ${res.status}: ${path}`)
 
   return res.json() as Promise<T>

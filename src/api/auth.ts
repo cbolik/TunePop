@@ -8,6 +8,7 @@ interface StoredTokens {
   accessToken: string
   refreshToken: string
   expiresAt: number
+  grantedScope: string
 }
 
 function getStored(): StoredTokens | null {
@@ -93,16 +94,18 @@ export async function handleCallback(code: string): Promise<void> {
     access_token: string
     refresh_token: string
     expires_in: number
+    scope?: string
   }
 
   store({
     accessToken: json.access_token,
     refreshToken: json.refresh_token,
     expiresAt: Date.now() + json.expires_in * 1000,
+    grantedScope: json.scope ?? '',
   })
 }
 
-async function refreshToken(refreshTok: string): Promise<void> {
+async function refreshAccessToken(refreshTok: string, existingScope: string): Promise<void> {
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -119,12 +122,14 @@ async function refreshToken(refreshTok: string): Promise<void> {
     access_token: string
     refresh_token?: string
     expires_in: number
+    scope?: string
   }
 
   store({
     accessToken: json.access_token,
     refreshToken: json.refresh_token ?? refreshTok,
     expiresAt: Date.now() + json.expires_in * 1000,
+    grantedScope: json.scope ?? existingScope,
   })
 }
 
@@ -134,7 +139,7 @@ export async function getAccessToken(): Promise<string | null> {
 
   if (Date.now() > tokens.expiresAt - 60_000) {
     try {
-      await refreshToken(tokens.refreshToken)
+      await refreshAccessToken(tokens.refreshToken, tokens.grantedScope)
       return getStored()?.accessToken ?? null
     } catch {
       clear()
@@ -143,6 +148,14 @@ export async function getAccessToken(): Promise<string | null> {
   }
 
   return tokens.accessToken
+}
+
+export function grantedScope(): string {
+  return getStored()?.grantedScope ?? ''
+}
+
+export function hasScope(scope: string): boolean {
+  return grantedScope().split(' ').includes(scope)
 }
 
 export function isLoggedIn(): boolean {
