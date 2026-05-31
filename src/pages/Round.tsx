@@ -106,7 +106,7 @@ export function Round() {
 
     const results: CategoryResult[] = viableCategories.flatMap(cat => {
       const tab = tabStates[cat]
-      if (!tab) return []
+      if (!tab || tab.userAnswerId === null) return []
       const userCorrect = tab.options.find(o => o.id === tab.userAnswerId)?.isCorrect ?? false
       const botCorrect = tab.options.find(o => o.id === tab.botAnswerId)?.isCorrect ?? false
       return [{
