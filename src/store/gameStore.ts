@@ -11,11 +11,6 @@ import {
 } from '../types/game'
 import { randomCategory } from '../utils/options'
 
-interface PrefetchedRound {
-  track: SpotifyTrack
-  category: Category
-}
-
 interface GameState {
   // Persisted
   config: GameConfig
@@ -26,7 +21,6 @@ interface GameState {
   currentTrack: SpotifyTrack | null
   currentCategory: Category
   completedRounds: CompletedRound[]
-  nextRoundData: PrefetchedRound | null
 
   // Actions
   setConfig(patch: Partial<GameConfig>): void
@@ -34,8 +28,7 @@ interface GameState {
   startGame(pool: SpotifyTrack[], firstTrack: SpotifyTrack): void
   setCategory(category: Category): void
   addCompletedRound(round: CompletedRound): void
-  setNextRoundData(data: PrefetchedRound | null): void
-  startNextRound(fallbackTrack: SpotifyTrack): void
+  startNextRound(newTrack: SpotifyTrack | null): void
   endGame(): void
   resetToSetup(): void
   setStatus(status: GameStatus): void
@@ -51,7 +44,6 @@ export const useGameStore = create<GameState>()(
       currentTrack: null,
       currentCategory: 'song',
       completedRounds: [],
-      nextRoundData: null,
 
       setConfig(patch) {
         set(s => ({ config: { ...s.config, ...patch } }))
@@ -68,7 +60,6 @@ export const useGameStore = create<GameState>()(
           currentTrack: firstTrack,
           currentCategory: randomCategory(),
           completedRounds: [],
-          nextRoundData: null,
         })
       },
 
@@ -80,26 +71,13 @@ export const useGameStore = create<GameState>()(
         set(s => ({ completedRounds: [...s.completedRounds, round] }))
       },
 
-      setNextRoundData(data) {
-        set({ nextRoundData: data })
-      },
-
-      startNextRound(fallbackTrack) {
-        const { nextRoundData, config, completedRounds } = get()
-        const track = nextRoundData?.track ?? fallbackTrack
-        const category = nextRoundData?.category ?? randomCategory()
-        const nextRoundNumber = completedRounds.length + 1
-
-        if (config.rounds !== null && nextRoundNumber >= config.rounds) {
-          set({ status: 'game-over', nextRoundData: null })
-          return
-        }
-
+      // newTrack: the Spotify track now playing, or null to reuse the current one
+      startNextRound(newTrack) {
+        const { currentTrack } = get()
         set({
           status: 'round',
-          currentTrack: track,
-          currentCategory: category,
-          nextRoundData: null,
+          currentTrack: newTrack ?? currentTrack,
+          currentCategory: randomCategory(),
         })
       },
 
@@ -114,7 +92,6 @@ export const useGameStore = create<GameState>()(
           currentTrack: null,
           currentCategory: 'song',
           completedRounds: [],
-          nextRoundData: null,
         })
       },
 

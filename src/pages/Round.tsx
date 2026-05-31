@@ -39,12 +39,14 @@ export function Round() {
   }, [currentTrack, trackPool])
 
   const [tabStates, setTabStates] = useState<Partial<Record<Category, TabState>>>(() => {
-    if (!currentTrack) return {}
-    const viable = getViableCategories(currentTrack, trackPool)
+    // Read directly from store to avoid capturing a stale React subscription snapshot
+    const { currentTrack: track, trackPool: pool } = useGameStore.getState()
+    if (!track) return {}
+    const viable = getViableCategories(track, pool)
     const states: Partial<Record<Category, TabState>> = {}
     for (const cat of viable) {
       states[cat] = {
-        options: buildOptions(currentTrack, trackPool, cat),
+        options: buildOptions(track, pool, cat),
         userAnswerId: null,
         botAnswerId: null,
         userAnsweredAt: null,
@@ -54,9 +56,10 @@ export function Round() {
   })
 
   const [activeCategory, setActiveCategory] = useState<Category>(() => {
-    if (!currentTrack) return 'song'
-    const viable = getViableCategories(currentTrack, trackPool)
-    return viable.includes(currentCategory) ? currentCategory : randomCategoryFrom(viable)
+    const { currentTrack: track, currentCategory: cat, trackPool: pool } = useGameStore.getState()
+    if (!track) return 'song'
+    const viable = getViableCategories(track, pool)
+    return viable.includes(cat) ? cat : randomCategoryFrom(viable)
   })
 
   const [botAnswered, setBotAnswered] = useState(false)

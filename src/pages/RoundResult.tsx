@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getCurrentlyPlaying, SpotifyTrack } from '../api/spotify'
 import { useGameStore, useScores } from '../store/gameStore'
 import { BOT_PERSONALITIES, CategoryResult } from '../types/game'
-import { getViableCategories, randomCategoryFrom, CATEGORY_LABELS } from '../utils/options'
+import { CATEGORY_LABELS } from '../utils/options'
 
 export function RoundResult() {
   const navigate = useNavigate()
@@ -11,10 +11,8 @@ export function RoundResult() {
     completedRounds,
     config,
     trackPool,
-    currentTrack,
     endGame,
     startNextRound,
-    setNextRoundData,
   } = useGameStore()
   const { userScore, botScore } = useScores()
 
@@ -31,13 +29,7 @@ export function RoundResult() {
 
   function doAdvance(newTrack: SpotifyTrack | null) {
     if (pollRef.current) clearInterval(pollRef.current)
-
-    if (newTrack) {
-      const viable = getViableCategories(newTrack, trackPool)
-      setNextRoundData({ track: newTrack, category: randomCategoryFrom(viable) })
-    }
-
-    startNextRound(currentTrack!)
+    startNextRound(newTrack)
     navigate('/round', { replace: true })
   }
 
