@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { getCurrentlyPlaying, skipToNext, SpotifyTrack } from '../api/spotify'
+import { getCurrentlyPlaying, getQueueTracks, skipToNext, SpotifyTrack } from '../api/spotify'
 import { useGameStore, useScores } from '../store/gameStore'
 import { BOT_PERSONALITIES, CategoryResult } from '../types/game'
 import { CATEGORY_LABELS } from '../utils/options'
@@ -32,9 +32,10 @@ export function RoundResult() {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
 
-  function doAdvance(newTrack: SpotifyTrack | null) {
+  async function doAdvance(newTrack: SpotifyTrack | null) {
     if (pollRef.current) clearInterval(pollRef.current)
-    startNextRound(newTrack)
+    const freshPool = await getQueueTracks().catch(() => [] as SpotifyTrack[])
+    startNextRound(newTrack, freshPool)
     navigate('/round', { replace: true })
   }
 

@@ -28,7 +28,7 @@ interface GameState {
   startGame(pool: SpotifyTrack[], firstTrack: SpotifyTrack): void
   setCategory(category: Category): void
   addCompletedRound(round: CompletedRound): void
-  startNextRound(newTrack: SpotifyTrack | null): void
+  startNextRound(newTrack: SpotifyTrack | null, freshPool?: SpotifyTrack[]): void
   endGame(): void
   resetToSetup(): void
   setStatus(status: GameStatus): void
@@ -71,13 +71,13 @@ export const useGameStore = create<GameState>()(
         set(s => ({ completedRounds: [...s.completedRounds, round] }))
       },
 
-      // newTrack: the Spotify track now playing, or null to reuse the current one
-      startNextRound(newTrack) {
-        const { currentTrack } = get()
+      startNextRound(newTrack, freshPool) {
+        const { currentTrack, trackPool } = get()
         set({
           status: 'round',
           currentTrack: newTrack ?? currentTrack,
           currentCategory: randomCategory(),
+          trackPool: freshPool && freshPool.length >= 4 ? freshPool : trackPool,
         })
       },
 

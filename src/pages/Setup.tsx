@@ -22,11 +22,15 @@ export function Setup() {
   }, [])
 
   async function tryStartGame(): Promise<boolean> {
-    // Try currently-playing first; fall back to full player state if context is missing
-    let playing = await getCurrentlyPlaying()
-    if (playing && !playing.context) {
-      playing = await getPlayerState()
-    }
+    // Fetch currently-playing and queue in parallel — queue is used as the pool
+    // directly, avoiding the slow playlist-tracks fetch in the common case.
+    const [playingRaw, queuePool] = await Promise.all([
+      getCurrentlyPlaying(),
+      getQueueTracks().catch(() => [] as SpotifyTrack[]),
+    ])
+
+    // Fall back to full player state if context is missing from currently-playing
+    const playing = (playingRaw && !playingRaw.context) ? await getPlayerState() : playingRaw
 
     if (!playing?.item || !playing.context) {
       return false
@@ -36,23 +40,27 @@ export function Setup() {
       throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
     }
 
-    let pool: SpotifyTrack[]
-    try {
-      pool = await getTracksForContext(playing.context)
-    } catch (err) {
-      if ((err as Error).message.startsWith('PLAYLIST_PERMISSION_DENIED')) {
-        // Playlist endpoint blocked — fall back to the player queue
-        pool = await getQueueTracks()
-        if (pool.length < 4) {
-          throw new Error('Could not read this playlist and the queue has too few tracks. Try playing a different playlist.')
+    // Use queue as pool; only fall back to playlist fetch if queue is too small
+    let pool: SpotifyTrack[] = queuePool.length >= 4 ? queuePool : []
+
+    if (pool.length < 4) {
+      try {
+        pool = await getTracksForContext(playing.context)
+      } catch (err) {
+        if ((err as Error).message.startsWith('PLAYLIST_PERMISSION_DENIED')) {
+          if (queuePool.length >= 4) {
+            pool = queuePool
+          } else {
+            throw new Error('Could not read this playlist and the queue has too few tracks. Try playing a different playlist.')
+          }
+        } else {
+          throw err
         }
-      } else {
-        throw err
       }
     }
 
     if (pool.length < 4) {
-      throw new Error('This playlist/album has too few tracks (need at least 4).')
+      throw new Error('Not enough tracks available (need at least 4). Try playing from a playlist or album.')
     }
 
     startGame(pool, playing.item as SpotifyTrack)
