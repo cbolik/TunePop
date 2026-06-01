@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCurrentlyPlaying, getPlayerState, getQueueTracks, getTracksForContext, SpotifyTrack } from '../api/spotify'
-import { grantedScope, hasScope, logout, reauthorize } from '../api/auth'
+import { grantedScope, hasScope, isLoggedIn, logout, reauthorize } from '../api/auth'
 import { useGameStore } from '../store/gameStore'
 import { Difficulty } from '../types/game'
 import { BOT_PERSONALITIES } from '../types/game'
@@ -34,18 +34,29 @@ export function Setup() {
       playing = await getPlayerState()
     }
 
-    if (!playing?.item || !playing?.context) {
+    if (!playing?.item) {
+      // All API calls returned null — if tokens were wiped, surface an auth
+      // error instead of silently waiting forever.
+      if (!isLoggedIn()) throw new Error('Session expired. Please log out and log back in.')
       return false
     }
 
-    if (playing.context.type !== 'playlist' && playing.context.type !== 'album') {
-      throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
+    // Context can legitimately be null when a track was explicitly queued
+    // rather than played from a playlist/album. Only validate when present.
+    if (playing.context) {
+      if (playing.context.type !== 'playlist' && playing.context.type !== 'album') {
+        throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
+      }
     }
 
-    // Use queue as pool; only fall back to playlist fetch if queue is too small
+    // Prefer queue as pool — it doesn't require a context URI
     let pool: SpotifyTrack[] = queuePool.length >= 4 ? queuePool : []
 
     if (pool.length < 4) {
+      if (!playing.context) {
+        // No context and not enough queued tracks to build a pool
+        throw new Error('Not enough upcoming tracks. Open Spotify, play from a playlist or album, then tap Play here.')
+      }
       try {
         pool = await getTracksForContext(playing.context)
       } catch (err) {
