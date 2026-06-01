@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { BotAvatar } from '../components/BotAvatar'
 import { CategoryTabs } from '../components/CategoryTabs'
 import { OptionCard } from '../components/OptionCard'
@@ -141,7 +141,7 @@ export function Round() {
     navigate('/result', { replace: true })
   }
 
-  if (!currentTrack) return null
+  if (!currentTrack) return <Navigate to="/setup" replace />
 
   const activeTab = tabStates[activeCategory]
   const options = activeTab?.options ?? []

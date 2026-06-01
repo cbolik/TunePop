@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useGameStore, useScores } from '../store/gameStore'
 import { BOT_PERSONALITIES } from '../types/game'
 
@@ -7,6 +7,8 @@ export function GameOver() {
   const { config, completedRounds, resetToSetup } = useGameStore()
   const { userScore, botScore } = useScores()
   const bot = BOT_PERSONALITIES[config.difficulty]
+
+  if (completedRounds.length === 0) return <Navigate to="/setup" replace />
 
   const userWins = userScore > botScore
   const tied = userScore === botScore

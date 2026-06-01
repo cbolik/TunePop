@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { getCurrentlyPlaying, skipToNext, SpotifyTrack } from '../api/spotify'
 import { useGameStore, useScores } from '../store/gameStore'
 import { BOT_PERSONALITIES, CategoryResult } from '../types/game'
@@ -65,7 +65,7 @@ export function RoundResult() {
     }
   }
 
-  if (!round) return null
+  if (!round) return <Navigate to="/setup" replace />
 
   const userPoints = round.userPoints
   const botPoints = round.botPoints
