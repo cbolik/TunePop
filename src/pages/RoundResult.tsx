@@ -23,6 +23,13 @@ export function RoundResult() {
   const isLastRound = config.rounds !== null && completedRounds.length >= config.rounds
   const bot = BOT_PERSONALITIES[config.difficulty]
 
+  function handleSkip() {
+    if (pollRef.current) clearInterval(pollRef.current)
+    const others = trackPool.filter(t => t.id !== round?.trackId)
+    const pick = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null
+    doAdvance(pick)
+  }
+
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
@@ -132,9 +139,17 @@ export function RoundResult() {
 
         {/* Advance / waiting */}
         {waitingForTrack ? (
-          <div className="w-full bg-card rounded-2xl py-4 px-6 flex items-center justify-center gap-3">
-            <span className="w-4 h-4 border-2 border-spotify border-t-transparent rounded-full animate-spin flex-shrink-0" />
-            <span className="text-gray-400 text-sm">Waiting for next track…</span>
+          <div className="flex flex-col gap-2">
+            <div className="w-full bg-card rounded-2xl py-4 px-6 flex items-center justify-center gap-3">
+              <span className="w-4 h-4 border-2 border-spotify border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <span className="text-gray-400 text-sm">Waiting for next track…</span>
+            </div>
+            <button
+              onClick={handleSkip}
+              className="w-full bg-card hover:bg-card-hover active:scale-95 transition-all text-gray-300 font-semibold py-3 rounded-2xl text-sm"
+            >
+              Skip →
+            </button>
           </div>
         ) : (
           <button
