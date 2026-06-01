@@ -185,7 +185,7 @@ export function Round() {
             onClick={handleNextRound}
             className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
           >
-            Next Round →
+            Submit →
           </button>
         </div>
       </main>
