@@ -80,19 +80,11 @@ interface PagedTracks {
 }
 
 export async function getPlaylistTracks(playlistId: string): Promise<SpotifyTrack[]> {
-  const tracks: SpotifyTrack[] = []
-  let path: string | null = `/playlists/${playlistId}/tracks?limit=50`
-
-  while (path) {
-    const data = await spotifyFetch<PagedTracks>(path)
-    if (!data) break
-    for (const item of data.items) {
-      if (item.track) tracks.push(item.track)
-    }
-    path = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null
-  }
-
-  return tracks
+  // Fetch up to 100 tracks in a single call — enough for option generation.
+  // Full sequential pagination (50/page) caused 5-10s delays on large playlists.
+  const data = await spotifyFetch<PagedTracks>(`/playlists/${playlistId}/tracks?limit=100`)
+  if (!data) return []
+  return data.items.flatMap(item => item.track ? [item.track] : [])
 }
 
 interface SpotifySimplifiedTrack {
