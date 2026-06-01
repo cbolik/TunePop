@@ -22,15 +22,16 @@ export function Setup() {
   }, [])
 
   async function tryStartGame(): Promise<boolean> {
-    // Fetch currently-playing and queue in parallel — queue is used as the pool
-    // directly, avoiding the slow playlist-tracks fetch in the common case.
-    const [playingRaw, queuePool] = await Promise.all([
+    // Fetch all three in parallel. currently-playing can return 204 even when
+    // Spotify is active (known transient behaviour), so always fetch the full
+    // player state too and use whichever has complete info.
+    const [playingRaw, playerState, queuePool] = await Promise.all([
       getCurrentlyPlaying(),
+      getPlayerState(),
       getQueueTracks().catch(() => [] as SpotifyTrack[]),
     ])
 
-    // Fall back to full player state if context is missing from currently-playing
-    const playing = (playingRaw && !playingRaw.context) ? await getPlayerState() : playingRaw
+    const playing = (playingRaw?.item && playingRaw?.context) ? playingRaw : playerState
 
     if (!playing?.item || !playing.context) {
       return false
