@@ -16,6 +16,7 @@ export function RoundResult() {
   const { userScore, botScore } = useScores()
 
   const [waitingForTrack, setWaitingForTrack] = useState(false)
+  const [skipping, setSkipping] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const round = completedRounds[completedRounds.length - 1]
@@ -23,6 +24,7 @@ export function RoundResult() {
   const bot = BOT_PERSONALITIES[config.difficulty]
 
   async function handleSkip() {
+    setSkipping(true)
     try {
       await skipToNext()
     } catch { /* no active device or no premium — poll will still advance when track changes */ }
@@ -150,9 +152,15 @@ export function RoundResult() {
             </div>
             <button
               onClick={handleSkip}
-              className="w-full bg-card hover:bg-card-hover active:scale-95 transition-all text-gray-300 font-semibold py-3 rounded-2xl text-sm"
+              disabled={skipping}
+              className="w-full bg-card hover:bg-card-hover active:scale-95 disabled:opacity-60 disabled:scale-100 transition-all text-gray-300 font-semibold py-3 rounded-2xl text-sm"
             >
-              Skip →
+              {skipping ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                  Skipping…
+                </span>
+              ) : 'Skip →'}
             </button>
           </div>
         ) : (

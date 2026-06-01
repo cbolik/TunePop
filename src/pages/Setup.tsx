@@ -132,46 +132,6 @@ export function Setup() {
       </header>
 
       <main className="flex-1 flex flex-col gap-5 px-4 pb-8">
-        <button
-          onClick={handleStart}
-          disabled={starting || waitingForSpotify}
-          className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 disabled:opacity-60 disabled:scale-100 transition-all text-white font-bold py-5 px-6 rounded-2xl text-lg"
-        >
-          {waitingForSpotify ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Waiting for Spotify…
-            </span>
-          ) : starting ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Loading…
-            </span>
-          ) : (
-            '▶  Play'
-          )}
-        </button>
-
-        {waitingForSpotify && (
-          <p className="text-center text-gray-400 text-sm -mt-2">
-            Open Spotify and start playing a playlist, then come back here.
-          </p>
-        )}
-
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-400 flex flex-col gap-2">
-            <span>{error}</span>
-            {needsReauth && (
-              <button
-                onClick={reauthorize}
-                className="self-start text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all font-semibold text-xs px-3 py-1.5 rounded-lg"
-              >
-                Re-authorize Spotify
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Opponent */}
         <Section title="Opponent">
           <div className="grid grid-cols-2 gap-2">
@@ -230,6 +190,46 @@ export function Setup() {
             />
           </div>
         </Section>
+
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-400 flex flex-col gap-2">
+            <span>{error}</span>
+            {needsReauth && (
+              <button
+                onClick={reauthorize}
+                className="self-start text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all font-semibold text-xs px-3 py-1.5 rounded-lg"
+              >
+                Re-authorize Spotify
+              </button>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={handleStart}
+          disabled={starting || waitingForSpotify}
+          className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 disabled:opacity-60 disabled:scale-100 transition-all text-white font-bold py-5 px-6 rounded-2xl text-lg"
+        >
+          {waitingForSpotify ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Waiting for Spotify…
+            </span>
+          ) : starting ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Loading…
+            </span>
+          ) : (
+            '▶  Play'
+          )}
+        </button>
+
+        {waitingForSpotify && (
+          <p className="text-center text-gray-400 text-sm -mt-2">
+            Open Spotify and start playing a playlist, then come back here.
+          </p>
+        )}
       </main>
     </div>
   )
