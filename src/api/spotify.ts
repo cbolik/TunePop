@@ -56,6 +56,16 @@ async function spotifyFetch<T>(path: string): Promise<T | null> {
   return res.json() as Promise<T>
 }
 
+async function spotifyPost(path: string): Promise<void> {
+  const token = await getAccessToken()
+  if (!token) return
+  const res = await fetch(`https://api.spotify.com/v1${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok && res.status !== 204) throw new Error(`Spotify ${res.status}: ${path}`)
+}
+
 export async function getCurrentlyPlaying(): Promise<CurrentlyPlaying | null> {
   return spotifyFetch<CurrentlyPlaying>('/me/player/currently-playing')
 }
@@ -124,6 +134,10 @@ export async function getTracksForContext(context: SpotifyContext): Promise<Spot
 interface PlayerQueue {
   currently_playing: SpotifyTrack | null
   queue: (SpotifyTrack & { type?: string })[]
+}
+
+export async function skipToNext(): Promise<void> {
+  await spotifyPost('/me/player/next')
 }
 
 export async function getQueueTracks(): Promise<SpotifyTrack[]> {

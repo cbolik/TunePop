@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCurrentlyPlaying, SpotifyTrack } from '../api/spotify'
+import { getCurrentlyPlaying, skipToNext, SpotifyTrack } from '../api/spotify'
 import { useGameStore, useScores } from '../store/gameStore'
 import { BOT_PERSONALITIES, CategoryResult } from '../types/game'
 import { CATEGORY_LABELS } from '../utils/options'
@@ -23,11 +23,10 @@ export function RoundResult() {
   const isLastRound = config.rounds !== null && completedRounds.length >= config.rounds
   const bot = BOT_PERSONALITIES[config.difficulty]
 
-  function handleSkip() {
-    if (pollRef.current) clearInterval(pollRef.current)
-    const others = trackPool.filter(t => t.id !== round?.trackId)
-    const pick = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null
-    doAdvance(pick)
+  async function handleSkip() {
+    try {
+      await skipToNext()
+    } catch { /* no active device or no premium — poll will still advance when track changes */ }
   }
 
   useEffect(() => {
