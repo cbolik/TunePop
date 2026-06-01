@@ -8,9 +8,6 @@ import { useGameStore } from '../store/gameStore'
 import { Category, CategoryResult, RoundOption } from '../types/game'
 import { getBotAnswer, getBotDelay } from '../utils/bot'
 import { buildOptions, getViableCategories } from '../utils/options'
-import { calculatePoints } from '../utils/scoring'
-
-const ROUND_TIMEOUT_MS = 30_000
 
 interface TabState {
   options: RoundOption[]
@@ -38,7 +35,6 @@ export function Round() {
   }, [currentTrack, trackPool])
 
   const [tabStates, setTabStates] = useState<Partial<Record<Category, TabState>>>(() => {
-    // Read directly from store to avoid capturing a stale React subscription snapshot
     const { currentTrack: track, trackPool: pool } = useGameStore.getState()
     if (!track) return {}
     const viable = getViableCategories(track, pool)
@@ -54,23 +50,89 @@ export function Round() {
     return states
   })
 
-  const [activeCategory, setActiveCategory] = useState<Category>('song')
+  // Keep a ref in sync so the bot timer can read the latest user answers
+  const tabStatesRef = useRef(tabStates)
+  tabStatesRef.current = tabStates
 
+  const [activeCategory, setActiveCategory] = useState<Category>('song')
   const [botAnswered, setBotAnswered] = useState(false)
+
+  function finalizeRound(currentTabStates: Partial<Record<Category, TabState>>) {
+    if (!currentTrack) return
+    if (botTimerRef.current) clearTimeout(botTimerRef.current)
+
+    const results: CategoryResult[] = viableCategories.flatMap(cat => {
+      const tab = currentTabStates[cat]
+      if (!tab) return []
+      const userAnswered = tab.userAnswerId !== null
+      const botAnswered = tab.botAnswerId !== null
+      // Speed mode: include any tab either player answered
+      // Normal mode: only include tabs the user chose to answer
+      if (!config.speedMode && !userAnswered) return []
+      if (config.speedMode && !userAnswered && !botAnswered) return []
+
+      const userCorrect = userAnswered
+        ? tab.options.find(o => o.id === tab.userAnswerId)?.isCorrect ?? false
+        : false
+      const botCorrect = botAnswered
+        ? tab.options.find(o => o.id === tab.botAnswerId)?.isCorrect ?? false
+        : false
+
+      return [{
+        category: cat,
+        options: tab.options,
+        userAnswerId: tab.userAnswerId,
+        botAnswerId: tab.botAnswerId,
+        userCorrect,
+        botCorrect,
+        userElapsedMs: tab.userAnsweredAt ? tab.userAnsweredAt - startTimeRef.current : null,
+        botElapsedMs: botAnswered ? botDelayRef.current : null,
+      }]
+    })
+
+    let userPoints: number
+    let botPoints: number
+    if (config.speedMode) {
+      // First correct answer wins the category — bot can't score where user was already correct
+      userPoints = results.filter(r => r.userCorrect).length
+      botPoints = results.filter(r => r.botCorrect && !r.userCorrect).length
+    } else {
+      userPoints = results.filter(r => r.userCorrect).length
+      botPoints = results.filter(r => r.botCorrect).length
+    }
+
+    addCompletedRound({
+      trackId: currentTrack.id,
+      trackName: currentTrack.name,
+      artistName: currentTrack.artists[0]?.name ?? '',
+      albumName: currentTrack.album.name,
+      releaseYear: currentTrack.album.release_date.substring(0, 4),
+      albumArtUrl: currentTrack.album.images[0]?.url ?? null,
+      results,
+      userPoints,
+      botPoints,
+    })
+
+    navigate('/result', { replace: true })
+  }
 
   // Bot locks in on all tabs at once after its delay
   useEffect(() => {
     botTimerRef.current = setTimeout(() => {
+      // Build next states using the ref so we have the user's latest answers
+      const nextStates = { ...tabStatesRef.current }
+      for (const cat of Object.keys(nextStates) as Category[]) {
+        const tab = nextStates[cat]!
+        const botAns = getBotAnswer(tab.options, config.difficulty)
+        nextStates[cat] = { ...tab, botAnswerId: botAns?.id ?? null }
+      }
       setBotAnswered(true)
-      setTabStates(prev => {
-        const next = { ...prev }
-        for (const cat of Object.keys(next) as Category[]) {
-          const tab = next[cat]!
-          const botAns = getBotAnswer(tab.options, config.difficulty)
-          next[cat] = { ...tab, botAnswerId: botAns?.id ?? null }
-        }
-        return next
-      })
+      setTabStates(nextStates)
+
+      // In speed mode the bot locking in ends the round for both players
+      if (config.speedMode) {
+        finalizeRound(nextStates)
+      }
     }, botDelayRef.current)
     return () => { if (botTimerRef.current) clearTimeout(botTimerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -97,49 +159,8 @@ export function Round() {
     return 'dimmed'
   }
 
-  function handleNextRound() {
-    if (!currentTrack) return
-    if (botTimerRef.current) clearTimeout(botTimerRef.current)
-
-    const results: CategoryResult[] = viableCategories.flatMap(cat => {
-      const tab = tabStates[cat]
-      if (!tab || tab.userAnswerId === null) return []
-      const userCorrect = tab.options.find(o => o.id === tab.userAnswerId)?.isCorrect ?? false
-      const botCorrect = tab.options.find(o => o.id === tab.botAnswerId)?.isCorrect ?? false
-      return [{
-        category: cat,
-        options: tab.options,
-        userAnswerId: tab.userAnswerId,
-        botAnswerId: tab.botAnswerId,
-        userCorrect,
-        botCorrect,
-        userElapsedMs: tab.userAnsweredAt ? tab.userAnsweredAt - startTimeRef.current : null,
-        botElapsedMs: tab.botAnswerId !== null ? botDelayRef.current : null,
-      }]
-    })
-
-    const userPoints = results.reduce((sum, r) => {
-      const elapsed = r.userElapsedMs ?? ROUND_TIMEOUT_MS
-      return sum + calculatePoints(r.userCorrect, elapsed, config.speedMode)
-    }, 0)
-
-    const botPoints = results.reduce((sum, r) => {
-      return sum + calculatePoints(r.botCorrect, botDelayRef.current, config.speedMode)
-    }, 0)
-
-    addCompletedRound({
-      trackId: currentTrack.id,
-      trackName: currentTrack.name,
-      artistName: currentTrack.artists[0]?.name ?? '',
-      albumName: currentTrack.album.name,
-      releaseYear: currentTrack.album.release_date.substring(0, 4),
-      albumArtUrl: currentTrack.album.images[0]?.url ?? null,
-      results,
-      userPoints,
-      botPoints,
-    })
-
-    navigate('/result', { replace: true })
+  function handleSubmit() {
+    finalizeRound(tabStates)
   }
 
   if (!currentTrack) return <Navigate to="/setup" replace />
@@ -177,10 +198,10 @@ export function Round() {
         <div className="mt-auto pt-2 flex flex-col gap-3">
           <BotAvatar difficulty={config.difficulty} phase={botAnswered ? 'locked' : 'thinking'} />
           <button
-            onClick={handleNextRound}
+            onClick={handleSubmit}
             className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
           >
-            Submit →
+            {config.speedMode ? 'Lock in →' : 'Submit →'}
           </button>
         </div>
       </main>

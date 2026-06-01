@@ -218,11 +218,11 @@ export function Setup() {
         </Section>
 
         {/* Speed Mode */}
-        <Section title="Speed Mode">
+        <Section title="Speed matters">
           <div className="flex items-center justify-between px-1">
             <div>
-              <p className="text-white text-sm font-medium">Points by speed</p>
-              <p className="text-gray-400 text-xs">Max 100 pts, min 10 pts</p>
+              <p className="text-white text-sm font-medium">Race the bot</p>
+              <p className="text-gray-400 text-xs">First correct answer wins the category</p>
             </div>
             <Toggle
               checked={config.speedMode}
