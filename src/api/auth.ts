@@ -175,6 +175,15 @@ export function isLoggedIn(): boolean {
   return getStored() !== null
 }
 
+export function tokenDebugInfo(): { expiresIn: number | null; scopes: string } {
+  const tokens = getStored()
+  if (!tokens) return { expiresIn: null, scopes: '' }
+  return {
+    expiresIn: Math.round((tokens.expiresAt - Date.now()) / 1000),
+    scopes: tokens.grantedScope,
+  }
+}
+
 export function logout(): void {
   clear()
 }

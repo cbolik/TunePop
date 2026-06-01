@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCurrentlyPlaying, getPlayerState, getQueueTracks, getTracksForContext, SpotifyTrack } from '../api/spotify'
-import { grantedScope, hasScope, isLoggedIn, logout, reauthorize } from '../api/auth'
+import { getCurrentlyPlaying, getPlayerState, getQueueTracks, getTracksForContext, SpotifyTrack, CurrentlyPlaying } from '../api/spotify'
+import { grantedScope, hasScope, isLoggedIn, logout, reauthorize, tokenDebugInfo } from '../api/auth'
 import { useGameStore } from '../store/gameStore'
 import { Difficulty } from '../types/game'
 import { BOT_PERSONALITIES } from '../types/game'
 
 const ROUND_OPTIONS = [5, 10, 15, 20, null] as const
+
+function fmtPlayer(p: CurrentlyPlaying | null, label: string): string {
+  if (p === null) return `${label}: null/204`
+  const item = p.item ? `"${p.item.name.slice(0, 22)}"` : 'null'
+  const ctx = p.context ? `${p.context.type}:…${p.context.uri.slice(-8)}` : 'null'
+  return `${label}: item=${item} ctx=${ctx} playing=${p.is_playing}`
+}
 
 export function Setup() {
   const navigate = useNavigate()
@@ -15,6 +22,7 @@ export function Setup() {
   const [waitingForSpotify, setWaitingForSpotify] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsReauth, setNeedsReauth] = useState(false)
+  const [diagLines, setDiagLines] = useState<string[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -22,60 +30,81 @@ export function Setup() {
   }, [])
 
   async function tryStartGame(): Promise<boolean> {
+    const diag: string[] = []
+    const { expiresIn, scopes } = tokenDebugInfo()
+    diag.push(`token: ${expiresIn === null ? 'MISSING' : expiresIn < 0 ? `EXPIRED ${expiresIn}s` : `ok +${expiresIn}s`}`)
+    diag.push(`scopes: ${scopes || '(none)'}`)
+
     const [playingRaw, queuePool] = await Promise.all([
       getCurrentlyPlaying(),
-      getQueueTracks().catch(() => [] as SpotifyTrack[]),
+      getQueueTracks().catch((e: unknown) => {
+        diag.push(`queue err: ${(e as Error).message}`)
+        return [] as SpotifyTrack[]
+      }),
     ])
 
-    // currently-playing can return 204 (null) or an item without context;
-    // fall back to full player state in either case
+    diag.push(fmtPlayer(playingRaw, '/currently-playing'))
+    diag.push(`queue: ${queuePool.length} tracks`)
+
     let playing = playingRaw
     if (!playing?.item || !playing?.context) {
       playing = await getPlayerState()
+      diag.push(fmtPlayer(playing, '/me/player'))
+    } else {
+      diag.push('/me/player: (skipped)')
     }
 
     if (!playing?.item) {
-      // All API calls returned null — if tokens were wiped, surface an auth
-      // error instead of silently waiting forever.
-      if (!isLoggedIn()) throw new Error('Session expired. Please log out and log back in.')
+      const loggedIn = isLoggedIn()
+      diag.push(`outcome: no item — loggedIn=${loggedIn}`)
+      setDiagLines(diag)
+      if (!loggedIn) throw new Error('Session expired. Please log out and log back in.')
       return false
     }
 
-    // Context can legitimately be null when a track was explicitly queued
-    // rather than played from a playlist/album. Only validate when present.
     if (playing.context) {
       if (playing.context.type !== 'playlist' && playing.context.type !== 'album') {
+        diag.push(`outcome: unsupported ctx type ${playing.context.type}`)
+        setDiagLines(diag)
         throw new Error('Liked Songs and radio stations aren\'t supported. Play from one of your playlists or an album.')
       }
     }
 
-    // Prefer queue as pool — it doesn't require a context URI
     let pool: SpotifyTrack[] = queuePool.length >= 4 ? queuePool : []
 
     if (pool.length < 4) {
       if (!playing.context) {
-        // No context and not enough queued tracks to build a pool
+        diag.push(`outcome: no ctx + queue too small (${queuePool.length})`)
+        setDiagLines(diag)
         throw new Error('Not enough upcoming tracks. Open Spotify, play from a playlist or album, then tap Play here.')
       }
       try {
         pool = await getTracksForContext(playing.context)
+        diag.push(`playlist fetch: ${pool.length} tracks`)
       } catch (err) {
+        diag.push(`playlist fetch err: ${(err as Error).message}`)
         if ((err as Error).message.startsWith('PLAYLIST_PERMISSION_DENIED')) {
           if (queuePool.length >= 4) {
             pool = queuePool
           } else {
+            setDiagLines(diag)
             throw new Error('Could not read this playlist and the queue has too few tracks. Try playing a different playlist.')
           }
         } else {
+          setDiagLines(diag)
           throw err
         }
       }
     }
 
     if (pool.length < 4) {
+      diag.push(`outcome: pool too small (${pool.length})`)
+      setDiagLines(diag)
       throw new Error('Not enough tracks available (need at least 4). Try playing from a playlist or album.')
     }
 
+    diag.push(`outcome: starting — pool=${pool.length}`)
+    setDiagLines(diag)
     startGame(pool, playing.item as SpotifyTrack)
     navigate('/round', { replace: true })
     return true
@@ -130,6 +159,10 @@ export function Setup() {
     logout()
     resetToSetup()
     navigate('/', { replace: true })
+  }
+
+  function copyDiag() {
+    navigator.clipboard?.writeText(diagLines.join('\n')).catch(() => {})
   }
 
   return (
@@ -242,6 +275,23 @@ export function Setup() {
           <p className="text-center text-gray-400 text-sm -mt-2">
             Open Spotify and start playing a playlist, then come back here.
           </p>
+        )}
+
+        {diagLines.length > 0 && (
+          <div className="bg-black/40 border border-white/10 rounded-xl p-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 text-xs font-semibold uppercase tracking-wide">Debug</span>
+              <button
+                onClick={copyDiag}
+                className="text-gray-500 text-xs hover:text-white transition-colors"
+              >
+                Copy
+              </button>
+            </div>
+            <div className="font-mono text-xs text-gray-300 space-y-0.5 break-all">
+              {diagLines.map((line, i) => <div key={i}>{line}</div>)}
+            </div>
+          </div>
         )}
       </main>
     </div>
