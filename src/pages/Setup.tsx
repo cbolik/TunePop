@@ -105,10 +105,6 @@ export function Setup() {
     }, 3000)
   }
 
-  function handleQuickPlay() {
-    handleStart()
-  }
-
   function handleLogout() {
     logout()
     resetToSetup()
@@ -128,9 +124,8 @@ export function Setup() {
       </header>
 
       <main className="flex-1 flex flex-col gap-5 px-4 pb-8">
-        {/* Quick Play */}
         <button
-          onClick={handleQuickPlay}
+          onClick={handleStart}
           disabled={starting || waitingForSpotify}
           className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 disabled:opacity-60 disabled:scale-100 transition-all text-white font-bold py-5 px-6 rounded-2xl text-lg"
         >
@@ -145,7 +140,7 @@ export function Setup() {
               Loading…
             </span>
           ) : (
-            '▶  Quick Play'
+            '▶  Play'
           )}
         </button>
 
