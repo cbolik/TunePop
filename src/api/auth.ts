@@ -21,12 +21,16 @@ function getStored(): StoredTokens | null {
 }
 
 function store(data: StoredTokens): void {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(data))
+  try {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(data))
+  } catch { /* storage unavailable */ }
 }
 
 function clear(): void {
-  localStorage.removeItem(TOKEN_KEY)
-  sessionStorage.removeItem(VERIFIER_KEY)
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(VERIFIER_KEY)
+  } catch { /* ignore */ }
 }
 
 async function generateVerifier(): Promise<string> {
