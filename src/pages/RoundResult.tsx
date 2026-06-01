@@ -70,8 +70,13 @@ export function RoundResult() {
 
   const userPoints = round.userPoints
   const botPoints = round.botPoints
-  const userWon = userPoints > botPoints
-  const botWon = botPoints > userPoints
+  // Accuracy wins the round; speed only breaks ties
+  const userCorrectCount = round.results.filter(r => r.userCorrect).length
+  const botCorrectCount = round.results.filter(r => r.botCorrect).length
+  const userWon = userCorrectCount > botCorrectCount ||
+    (userCorrectCount === botCorrectCount && userPoints > botPoints)
+  const botWon = botCorrectCount > userCorrectCount ||
+    (botCorrectCount === userCorrectCount && botPoints > userPoints)
 
   return (
     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto">

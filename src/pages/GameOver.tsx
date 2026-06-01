@@ -10,13 +10,14 @@ export function GameOver() {
 
   if (completedRounds.length === 0) return <Navigate to="/setup" replace />
 
-  const userWins = userScore > botScore
-  const tied = userScore === botScore
-
   const allResults = completedRounds.flatMap(r => r.results)
   const userCorrect = allResults.filter(r => r.userCorrect).length
   const botCorrect = allResults.filter(r => r.botCorrect).length
   const total = allResults.length
+  // Accuracy wins overall; speed score only breaks ties
+  const userWins = userCorrect > botCorrect ||
+    (userCorrect === botCorrect && userScore > botScore)
+  const tied = userCorrect === botCorrect && userScore === botScore
 
   function handlePlayAgain() {
     resetToSetup()
