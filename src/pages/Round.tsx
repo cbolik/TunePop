@@ -26,7 +26,6 @@ export function Round() {
   } = useGameStore()
 
   const startTimeRef = useRef<number>(Date.now())
-  const botDelayRef = useRef<number>(getBotDelay(config.difficulty))
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const viableCategories = useMemo(() => {
@@ -86,7 +85,7 @@ export function Round() {
         userCorrect,
         botCorrect,
         userElapsedMs: tab.userAnsweredAt ? tab.userAnsweredAt - startTimeRef.current : null,
-        botElapsedMs: botAnswered ? botDelayRef.current : null,
+        botElapsedMs: null,
       }]
     })
 
@@ -116,31 +115,46 @@ export function Round() {
     navigate('/result', { replace: true })
   }
 
-  // Bot locks in on all tabs at once after its delay
+  // Bot answers one tab at a time, in random order, each with its own delay
   useEffect(() => {
-    botTimerRef.current = setTimeout(() => {
-      // Build next states using the ref so we have the user's latest answers
-      const nextStates = { ...tabStatesRef.current }
-      for (const cat of Object.keys(nextStates) as Category[]) {
-        const tab = nextStates[cat]!
-        const botAns = getBotAnswer(tab.options, config.difficulty)
-        nextStates[cat] = { ...tab, botAnswerId: botAns?.id ?? null }
-      }
-      setBotAnswered(true)
-      setTabStates(nextStates)
+    const shuffled = [...viableCategories].sort(() => Math.random() - 0.5)
+    let cancelled = false
 
-      // In speed mode the bot locking in ends the round for both players
-      if (config.speedMode) {
-        finalizeRound(nextStates)
-      }
-    }, botDelayRef.current)
-    return () => { if (botTimerRef.current) clearTimeout(botTimerRef.current) }
+    function fireNextTab(remaining: Category[]) {
+      if (cancelled || remaining.length === 0) return
+      const [cat, ...rest] = remaining
+      botTimerRef.current = setTimeout(() => {
+        if (cancelled) return
+        setBotAnswered(true)
+        const tab = tabStatesRef.current[cat]
+        if (!tab) { fireNextTab(rest); return }
+        const botAns = getBotAnswer(tab.options, config.difficulty)
+        const nextStates = {
+          ...tabStatesRef.current,
+          [cat]: { ...tab, botAnswerId: botAns?.id ?? null },
+        }
+        setTabStates(nextStates)
+        if (rest.length === 0 && config.speedMode) {
+          // Last tab fired — end round in speed mode
+          finalizeRound(nextStates)
+        } else {
+          fireNextTab(rest)
+        }
+      }, getBotDelay(config.difficulty))
+    }
+
+    fireNextTab(shuffled)
+    return () => {
+      cancelled = true
+      if (botTimerRef.current) clearTimeout(botTimerRef.current)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleAnswer(option: RoundOption) {
     const tab = tabStates[activeCategory]
     if (!tab || tab.userAnswerId !== null) return
+    if (config.speedMode && tab.botAnswerId !== null) return  // bot already claimed this tab
     setTabStates(prev => ({
       ...prev,
       [activeCategory]: {
@@ -190,7 +204,7 @@ export function Round() {
               label={option.label}
               state={getOptionState(option)}
               onClick={() => handleAnswer(option)}
-              disabled={activeTab?.userAnswerId !== null}
+              disabled={activeTab?.userAnswerId !== null || (config.speedMode && activeTab?.botAnswerId !== null)}
             />
           ))}
         </div>
