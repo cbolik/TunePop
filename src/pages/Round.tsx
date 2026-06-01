@@ -7,7 +7,7 @@ import { ScoreBoard } from '../components/ScoreBoard'
 import { useGameStore } from '../store/gameStore'
 import { Category, CategoryResult, RoundOption } from '../types/game'
 import { getBotAnswer, getBotDelay } from '../utils/bot'
-import { buildOptions, getViableCategories, randomCategoryFrom } from '../utils/options'
+import { buildOptions, getViableCategories } from '../utils/options'
 import { calculatePoints } from '../utils/scoring'
 
 const ROUND_TIMEOUT_MS = 30_000
@@ -23,7 +23,6 @@ export function Round() {
   const navigate = useNavigate()
   const {
     currentTrack,
-    currentCategory,
     trackPool,
     config,
     addCompletedRound,
@@ -55,12 +54,7 @@ export function Round() {
     return states
   })
 
-  const [activeCategory, setActiveCategory] = useState<Category>(() => {
-    const { currentTrack: track, currentCategory: cat, trackPool: pool } = useGameStore.getState()
-    if (!track) return 'song'
-    const viable = getViableCategories(track, pool)
-    return viable.includes(cat) ? cat : randomCategoryFrom(viable)
-  })
+  const [activeCategory, setActiveCategory] = useState<Category>('song')
 
   const [botAnswered, setBotAnswered] = useState(false)
 

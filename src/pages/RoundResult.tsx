@@ -10,7 +10,6 @@ export function RoundResult() {
   const {
     completedRounds,
     config,
-    trackPool,
     endGame,
     startNextRound,
   } = useGameStore()
@@ -49,16 +48,14 @@ export function RoundResult() {
     try {
       const playing = await getCurrentlyPlaying()
       if (playing?.item && playing.item.id !== round?.trackId) {
-        const inPool = trackPool.some(t => t.id === playing.item!.id)
-        doAdvance(inPool ? playing.item : null)
+        doAdvance(playing.item)
       } else {
         setWaitingForTrack(true)
         pollRef.current = setInterval(async () => {
           try {
             const p = await getCurrentlyPlaying()
             if (p?.item && p.item.id !== round?.trackId) {
-              const inPool = trackPool.some(t => t.id === p.item!.id)
-              doAdvance(inPool ? p.item : null)
+              doAdvance(p.item)
             }
           } catch { /* keep polling */ }
         }, 3000)
