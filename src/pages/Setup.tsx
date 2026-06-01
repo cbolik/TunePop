@@ -22,18 +22,19 @@ export function Setup() {
   }, [])
 
   async function tryStartGame(): Promise<boolean> {
-    // Fetch all three in parallel. currently-playing can return 204 even when
-    // Spotify is active (known transient behaviour), so always fetch the full
-    // player state too and use whichever has complete info.
-    const [playingRaw, playerState, queuePool] = await Promise.all([
+    const [playingRaw, queuePool] = await Promise.all([
       getCurrentlyPlaying(),
-      getPlayerState(),
       getQueueTracks().catch(() => [] as SpotifyTrack[]),
     ])
 
-    const playing = (playingRaw?.item && playingRaw?.context) ? playingRaw : playerState
+    // currently-playing can return 204 (null) or an item without context;
+    // fall back to full player state in either case
+    let playing = playingRaw
+    if (!playing?.item || !playing?.context) {
+      playing = await getPlayerState()
+    }
 
-    if (!playing?.item || !playing.context) {
+    if (!playing?.item || !playing?.context) {
       return false
     }
 
