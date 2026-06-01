@@ -114,6 +114,7 @@ export function Round() {
         userCorrect,
         botCorrect,
         userElapsedMs: tab.userAnsweredAt ? tab.userAnsweredAt - startTimeRef.current : null,
+        botElapsedMs: tab.botAnswerId !== null ? botDelayRef.current : null,
       }]
     })
 

@@ -119,16 +119,18 @@ export function RoundResult() {
 
         {/* Running totals */}
         <div className="bg-card rounded-2xl p-4">
-          <p className="text-gray-400 text-xs uppercase tracking-wider mb-3">Total Score</p>
+          <p className="text-gray-400 text-xs uppercase tracking-wider mb-3">Running Total</p>
           <div className="flex items-center gap-3">
             <div className="flex-1 text-center">
               <p className="text-2xl font-extrabold text-white">{userScore}</p>
-              <p className="text-xs text-gray-400">You</p>
+              <p className="text-xs text-gray-500">+{userPoints} this round</p>
+              <p className="text-xs text-gray-400 mt-0.5">You</p>
             </div>
             <span className="text-gray-600 font-bold">vs</span>
             <div className="flex-1 text-center">
               <p className="text-2xl font-extrabold text-white">{botScore}</p>
-              <p className="text-xs text-gray-400">{bot.name}</p>
+              <p className="text-xs text-gray-500">+{botPoints} this round</p>
+              <p className="text-xs text-gray-400 mt-0.5">{bot.name}</p>
             </div>
           </div>
         </div>
@@ -189,8 +191,8 @@ function CategoryResultCard({ result, botLabel, speedMode }: CategoryResultCardP
           answer={botAnswer?.label ?? '—'}
           correct={result.botCorrect}
           unanswered={result.botAnswerId === null}
-          elapsedMs={null}
-          speedMode={false}
+          elapsedMs={result.botElapsedMs}
+          speedMode={speedMode}
         />
       </div>
     </div>

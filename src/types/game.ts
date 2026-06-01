@@ -22,6 +22,7 @@ export interface CategoryResult {
   userCorrect: boolean
   botCorrect: boolean
   userElapsedMs: number | null
+  botElapsedMs: number | null
 }
 
 export interface CompletedRound {
