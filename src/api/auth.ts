@@ -137,13 +137,22 @@ async function refreshAccessToken(refreshTok: string, existingScope: string): Pr
   })
 }
 
+// Deduplicate concurrent refresh attempts — Spotify rotates refresh tokens on
+// use, so two simultaneous refreshes will cause the second to fail and wipe
+// the stored tokens, breaking all API calls until the next page load.
+let inflightRefresh: Promise<void> | null = null
+
 export async function getAccessToken(): Promise<string | null> {
   const tokens = getStored()
   if (!tokens) return null
 
   if (Date.now() > tokens.expiresAt - 60_000) {
+    if (!inflightRefresh) {
+      inflightRefresh = refreshAccessToken(tokens.refreshToken, tokens.grantedScope)
+        .finally(() => { inflightRefresh = null })
+    }
     try {
-      await refreshAccessToken(tokens.refreshToken, tokens.grantedScope)
+      await inflightRefresh
       return getStored()?.accessToken ?? null
     } catch {
       clear()
