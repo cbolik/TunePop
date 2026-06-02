@@ -1,4 +1,4 @@
-export type Category = 'song' | 'artist' | 'album' | 'year'
+export type Category = 'song' | 'artist' | 'album' | 'year' | 'cover'
 export type Difficulty = 'novice' | 'fan' | 'expert' | 'genius'
 export type GameStatus = 'login' | 'setup' | 'round' | 'round-result' | 'game-over'
 
@@ -11,6 +11,7 @@ export interface GameConfig {
 export interface RoundOption {
   id: string
   label: string
+  imageUrl?: string
   isCorrect: boolean
 }
 

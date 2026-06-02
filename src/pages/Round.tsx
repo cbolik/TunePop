@@ -197,11 +197,12 @@ export function Round() {
           answeredCategories={answeredCategories}
         />
 
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className={`grid gap-2.5 ${activeCategory === 'cover' ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {options.map(option => (
             <OptionCard
               key={option.id}
               label={option.label}
+              imageUrl={option.imageUrl}
               state={getOptionState(option)}
               onClick={() => handleAnswer(option)}
               disabled={activeTab?.userAnswerId !== null || (config.speedMode && activeTab?.botAnswerId !== null)}
