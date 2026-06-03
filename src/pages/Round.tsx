@@ -55,6 +55,7 @@ export function Round() {
 
   const [activeCategory, setActiveCategory] = useState<Category>('song')
   const [botAnswered, setBotAnswered] = useState(false)
+  const [botDone, setBotDone] = useState(false)
 
   function finalizeRound(currentTabStates: Partial<Record<Category, TabState>>) {
     if (!currentTrack) return
@@ -135,7 +136,7 @@ export function Round() {
         }
         setTabStates(nextStates)
         if (rest.length === 0 && config.speedMode) {
-          // Last tab fired — end round in speed mode
+          setBotDone(true)
           finalizeRound(nextStates)
         } else {
           fireNextTab(rest)
@@ -154,7 +155,7 @@ export function Round() {
   function handleAnswer(option: RoundOption) {
     const tab = tabStates[activeCategory]
     if (!tab || tab.userAnswerId !== null) return
-    if (config.speedMode && tab.botAnswerId !== null) return  // bot already claimed this tab
+    if (config.speedMode && (botDone || tab.botAnswerId !== null)) return
     setTabStates(prev => ({
       ...prev,
       [activeCategory]: {
@@ -205,7 +206,7 @@ export function Round() {
               imageUrl={option.imageUrl}
               state={getOptionState(option)}
               onClick={() => handleAnswer(option)}
-              disabled={activeTab?.userAnswerId !== null || (config.speedMode && activeTab?.botAnswerId !== null)}
+              disabled={activeTab?.userAnswerId !== null || (config.speedMode && (botDone || activeTab?.botAnswerId !== null))}
             />
           ))}
         </div>
@@ -214,7 +215,8 @@ export function Round() {
           <BotAvatar difficulty={config.difficulty} phase={botAnswered ? 'locked' : 'thinking'} />
           <button
             onClick={handleSubmit}
-            className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
+            disabled={config.speedMode && botDone}
+            className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 disabled:opacity-60 disabled:scale-100 transition-all text-white font-bold py-4 rounded-2xl text-base"
           >
             {config.speedMode ? 'Lock in →' : 'Submit →'}
           </button>
