@@ -27,6 +27,7 @@ export function Round() {
 
   const startTimeRef = useRef<number>(Date.now())
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const botDoneRef = useRef(false)
 
   const viableCategories = useMemo(() => {
     if (!currentTrack) return ['song' as Category]
@@ -136,7 +137,8 @@ export function Round() {
         }
         setTabStates(nextStates)
         if (rest.length === 0 && config.speedMode) {
-          setBotDone(true)
+          botDoneRef.current = true  // synchronous — blocks handleAnswer immediately
+          setBotDone(true)           // triggers re-render to visually disable buttons
           finalizeRound(nextStates)
         } else {
           fireNextTab(rest)
@@ -155,7 +157,7 @@ export function Round() {
   function handleAnswer(option: RoundOption) {
     const tab = tabStates[activeCategory]
     if (!tab || tab.userAnswerId !== null) return
-    if (config.speedMode && (botDone || tab.botAnswerId !== null)) return
+    if (config.speedMode && (botDoneRef.current || tab.botAnswerId !== null)) return
     setTabStates(prev => ({
       ...prev,
       [activeCategory]: {
