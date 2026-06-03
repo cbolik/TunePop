@@ -21,6 +21,7 @@ export function RoundResult() {
 
   const round = completedRounds[completedRounds.length - 1]
   const isLastRound = config.rounds !== null && completedRounds.length >= config.rounds
+  const nextIsFinalRound = !isLastRound && config.rounds !== null && completedRounds.length + 1 === config.rounds
   const bot = BOT_PERSONALITIES[config.difficulty]
 
   async function handleSkip() {
@@ -168,7 +169,7 @@ export function RoundResult() {
             onClick={handleAdvance}
             className="w-full bg-spotify hover:bg-spotify-dark active:scale-95 transition-all text-white font-bold py-4 rounded-2xl text-base"
           >
-            {isLastRound ? 'See Final Results' : 'Next Round'}
+            {isLastRound ? 'See Final Results' : nextIsFinalRound ? 'Final Round →' : 'Next Round →'}
           </button>
         )}
       </main>

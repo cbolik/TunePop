@@ -5,7 +5,7 @@ import { CategoryTabs } from '../components/CategoryTabs'
 import { OptionCard } from '../components/OptionCard'
 import { ScoreBoard } from '../components/ScoreBoard'
 import { useGameStore } from '../store/gameStore'
-import { Category, CategoryResult, RoundOption } from '../types/game'
+import { Category, CategoryResult, RoundOption, BOT_PERSONALITIES } from '../types/game'
 import { getBotAnswer, getBotDelay } from '../utils/bot'
 import { buildOptions, getViableCategories } from '../utils/options'
 
@@ -129,7 +129,19 @@ export function Round() {
         if (cancelled) return
         setBotAnswered(true)
         const tab = tabStatesRef.current[cat]
-        if (!tab) { fireNextTab(rest); return }
+
+        // Skip: tab missing, or user already answered in speed mode (they own it)
+        if (!tab || (config.speedMode && tab.userAnswerId !== null)) {
+          if (rest.length === 0 && config.speedMode) {
+            botDoneRef.current = true
+            setBotDone(true)
+            finalizeRound(tabStatesRef.current)
+          } else {
+            fireNextTab(rest)
+          }
+          return
+        }
+
         const botAns = getBotAnswer(tab.options, config.difficulty)
         const nextStates = {
           ...tabStatesRef.current,
@@ -137,8 +149,8 @@ export function Round() {
         }
         setTabStates(nextStates)
         if (rest.length === 0 && config.speedMode) {
-          botDoneRef.current = true  // synchronous — blocks handleAnswer immediately
-          setBotDone(true)           // triggers re-render to visually disable buttons
+          botDoneRef.current = true
+          setBotDone(true)
           finalizeRound(nextStates)
         } else {
           fireNextTab(rest)
@@ -170,7 +182,10 @@ export function Round() {
 
   function getOptionState(option: RoundOption): 'default' | 'correct' | 'wrong' | 'dimmed' {
     const tab = tabStates[activeCategory]
-    if (!tab || tab.userAnswerId === null) return 'default'
+    if (!tab) return 'default'
+    // Bot locked this tab before user answered — dim everything to match the disabled state
+    if (config.speedMode && tab.botAnswerId !== null && tab.userAnswerId === null) return 'dimmed'
+    if (tab.userAnswerId === null) return 'default'
     if (option.isCorrect) return 'correct'
     if (option.id === tab.userAnswerId) return 'wrong'
     return 'dimmed'
@@ -182,6 +197,7 @@ export function Round() {
 
   if (!currentTrack) return <Navigate to="/setup" replace />
 
+  const bot = BOT_PERSONALITIES[config.difficulty]
   const activeTab = tabStates[activeCategory]
   const options = activeTab?.options ?? []
   const answeredCategories = viableCategories.filter(cat => tabStates[cat]?.userAnswerId !== null)
@@ -203,6 +219,13 @@ export function Round() {
           answeredCategories={answeredCategories}
           botLockedCategories={botLockedCategories}
         />
+
+        {config.speedMode && activeTab?.botAnswerId !== null && activeTab?.userAnswerId === null && (
+          <div className="flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+            <span>{bot.emoji}</span>
+            <span>{bot.name} locked this in</span>
+          </div>
+        )}
 
         <div className={`grid gap-2.5 ${activeCategory === 'cover' ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {options.map(option => (
