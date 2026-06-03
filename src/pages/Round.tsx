@@ -157,7 +157,7 @@ export function Round() {
   function handleAnswer(option: RoundOption) {
     const tab = tabStates[activeCategory]
     if (!tab || tab.userAnswerId !== null) return
-    if (config.speedMode && botDoneRef.current) return
+    if (config.speedMode && (botDoneRef.current || tab.botAnswerId !== null)) return
     setTabStates(prev => ({
       ...prev,
       [activeCategory]: {
@@ -185,6 +185,9 @@ export function Round() {
   const activeTab = tabStates[activeCategory]
   const options = activeTab?.options ?? []
   const answeredCategories = viableCategories.filter(cat => tabStates[cat]?.userAnswerId !== null)
+  const botLockedCategories = config.speedMode
+    ? viableCategories.filter(cat => tabStates[cat]?.botAnswerId !== null)
+    : []
 
   return (
     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto">
@@ -198,6 +201,7 @@ export function Round() {
           onChange={setActiveCategory}
           viableCategories={viableCategories}
           answeredCategories={answeredCategories}
+          botLockedCategories={botLockedCategories}
         />
 
         <div className={`grid gap-2.5 ${activeCategory === 'cover' ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -208,7 +212,7 @@ export function Round() {
               imageUrl={option.imageUrl}
               state={getOptionState(option)}
               onClick={() => handleAnswer(option)}
-              disabled={activeTab?.userAnswerId !== null || (config.speedMode && botDone)}
+              disabled={activeTab?.userAnswerId !== null || (config.speedMode && (botDone || activeTab?.botAnswerId !== null))}
             />
           ))}
         </div>
