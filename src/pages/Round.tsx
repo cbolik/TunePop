@@ -157,7 +157,7 @@ export function Round() {
   function handleAnswer(option: RoundOption) {
     const tab = tabStates[activeCategory]
     if (!tab || tab.userAnswerId !== null) return
-    if (config.speedMode && (botDoneRef.current || tab.botAnswerId !== null)) return
+    if (config.speedMode && botDoneRef.current) return
     setTabStates(prev => ({
       ...prev,
       [activeCategory]: {
@@ -208,7 +208,7 @@ export function Round() {
               imageUrl={option.imageUrl}
               state={getOptionState(option)}
               onClick={() => handleAnswer(option)}
-              disabled={activeTab?.userAnswerId !== null || (config.speedMode && (botDone || activeTab?.botAnswerId !== null))}
+              disabled={activeTab?.userAnswerId !== null || (config.speedMode && botDone)}
             />
           ))}
         </div>
