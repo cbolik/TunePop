@@ -42,6 +42,16 @@ export function RoundResult() {
     navigate('/round', { replace: true })
   }
 
+  // Spotify can relink a track to a different ID (regional swap, remaster, catalog
+  // update) — the player API returns the new ID while we stored the old one.
+  // Guard against that by treating name + primary artist as a fallback match.
+  function isSameTrack(item: SpotifyTrack): boolean {
+    if (!round) return false
+    if (item.id === round.trackId) return true
+    return item.name === round.trackName &&
+      (item.artists[0]?.name ?? '') === round.artistName
+  }
+
   async function handleAdvance() {
     if (isLastRound) {
       endGame()
@@ -51,14 +61,14 @@ export function RoundResult() {
 
     try {
       const playing = await getCurrentlyPlaying()
-      if (playing?.item && playing.item.id !== round?.trackId) {
+      if (playing?.item && !isSameTrack(playing.item)) {
         doAdvance(playing.item)
       } else {
         setWaitingForTrack(true)
         pollRef.current = setInterval(async () => {
           try {
             const p = await getCurrentlyPlaying()
-            if (p?.item && p.item.id !== round?.trackId) {
+            if (p?.item && !isSameTrack(p.item)) {
               doAdvance(p.item)
             }
           } catch { /* keep polling */ }
