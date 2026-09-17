@@ -224,7 +224,7 @@ export function Setup() {
         </Section>
 
         {/* Speed Mode */}
-        <Section title="Speed matters">
+        <Section title="Options">
           <div className="flex items-center justify-between px-1">
             <div>
               <p className="text-white text-sm font-medium">Race the bot</p>
